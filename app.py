@@ -101,7 +101,7 @@ if menu == "➕ Novo Orçamento":
         with col_email:
             email_cliente = st.text_input("E-mail do Cliente")
         
-        st.subheader("2. Detalhes do Projeto")
+        st.subheader("2. Detalhes do Orçamento")
         resumo_servicos = st.text_area("Resumo dos Serviços *", placeholder="Ex: Planejamento, execução e entrega de projeto comercial...")
 
         st.subheader("3. Valores e Itens")
