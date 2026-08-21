@@ -11,8 +11,8 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz7Pnyk2eCsURm-9-WKlluYJAF
 # 1. CONFIGURAÇÃO DA PÁGINA E CSS
 # =================================================================================
 st.set_page_config(
-    page_title="Nutribook — Portal do Consultório",
-    page_icon="🍎",
+    page_title="Orçamento — Portal Comercial",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -77,12 +77,12 @@ def carregar_dados_planilha():
 with st.sidebar:
     st.image("logo.png", width=160)
     st.markdown("#### Olá, **Jean Victor**! 👋")
-    st.caption("Vamos iniciar o próximo Nutribook?")
+    st.caption("Vamos emitir o próximo orçamento?")
     st.divider()
     
     menu = st.radio(
-        "Navegação do Consultório:",
-        ["➕ Novo Nutribook", "📋 Painel Nutribook"],
+        "Navegação Comercial:",
+        ["➕ Novo Orçamento", "📋 Painel de Orçamentos"],
         index=0
     )
 
@@ -90,66 +90,63 @@ with st.sidebar:
 # 3. CONTEÚDO PRINCIPAL
 # =================================================================================
 
-if menu == "➕ Novo Nutribook":
-    st.title("🍎 Novo Nutribook")
-    st.write("Preencha as informações do paciente e anexe o plano em PDF para disparar a geração.")
+if menu == "➕ Novo Orçamento":
+    st.title("📊 Novo Orçamento")
+    st.write("Preencha as informações do cliente e anexe a proposta em PDF para disparar a geração.")
     
-    with st.form("form_nutribook", clear_on_submit=True):
-        st.subheader("Dados do Paciente")
+    with st.form("form_orcamento", clear_on_submit=True):
+        st.subheader("Dados do Cliente")
         col_nome, col_email = st.columns(2)
         with col_nome:
-            nome_paciente = st.text_input("Nome do Paciente *")
+            nome_cliente = st.text_input("Nome do Cliente *")
         with col_email:
-            email_paciente = st.text_input("E-mail do Paciente")
+            email_cliente = st.text_input("E-mail do Cliente")
         
-        st.subheader("Perfis / Protocolos do Paciente")
-        lista_protocolos = [
-            "Fertilidade Feminina",
-            "Emagrecimento & Definição",
-            "Hipertrofia & Ganho de Massa",
-            "Reeducação Alimentar & Saúde Geral",
-            "Saúde Intestinal (Disbiose / FODMAPs)",
-            "Saúde da Mulher (SOP / Endometriose)",
-            "Controle Metabólico (Diabetes / Colesterol)",
-            "Performance Esportiva",
-            "Alimentação Plant-Based (Veg/Vegano)",
-            "Gestante & Lactante",
-            "Longevidade & Saúde Sênior",
-            "Guia Prático & Orientações Gerais"
+        st.subheader("Escopo / Detalhes da Proposta")
+        lista_opcoes = [
+            "Projeto Executivo Completo",
+            "Consultoria e Gestão",
+            "Reforma Comercial",
+            "Reforma Residencial",
+            "Planejamento de Etapas",
+            "Laudo Técnico & Vistoria",
+            "Assessoria de Instalações",
+            "Gestão de Insumos & Materiais",
+            "Escopo Personalizado"
         ]
         
-        protocolos_selecionados = []
-        col_proto1, col_proto2 = st.columns(2)
-        metade = (len(lista_protocolos) + 1) // 2
+        opcoes_selecionadas = []
+        col_opt1, col_opt2 = st.columns(2)
+        metade = (len(lista_opcoes) + 1) // 2
         
-        with col_proto1:
-            for p in lista_protocolos[:metade]:
-                if st.checkbox(p, key=p):
-                    protocolos_selecionados.append(p)
+        with col_opt1:
+            for o in lista_opcoes[:metade]:
+                if st.checkbox(o, key=o):
+                    opcoes_selecionadas.append(o)
                     
-        with col_proto2:
-            for p in lista_protocolos[metade:]:
-                if st.checkbox(p, key=p):
-                    protocolos_selecionados.append(p)
+        with col_opt2:
+            for o in lista_opcoes[metade:]:
+                if st.checkbox(o, key=o):
+                    opcoes_selecionadas.append(o)
         
-        st.subheader("Plano Alimentar Base")
-        pdf_file = st.file_uploader("Upload do Plano Alimentar Base (PDF):", type=["pdf"])
+        st.subheader("Documento Base da Proposta")
+        pdf_file = st.file_uploader("Upload do Orçamento / Escopo Base (PDF):", type=["pdf"])
         
-        submitted = st.form_submit_button("CRIAR NUTRIBOOK")
+        submitted = st.form_submit_button("CRIAR ORÇAMENTO")
         
         if submitted:
-            if nome_paciente and pdf_file:
+            if nome_cliente and pdf_file:
                 if WEBAPP_URL == "SUA_URL_DO_WEB_APP_AQUI":
                     st.error("Por favor, configure a URL do seu Apps Script Web App no código.")
                 else:
                     with st.spinner("Enviando arquivo e registrando pedido..."):
                         file_bytes = base64.b64encode(pdf_file.getvalue()).decode('utf-8')
-                        protocolos_str = ", ".join(protocolos_selecionados) if protocolos_selecionados else "Padrão"
+                        detalhes_str = ", ".join(opcoes_selecionadas) if opcoes_selecionadas else "Padrão"
                         
                         payload = {
-                            "nome": nome_paciente,
-                            "email": email_paciente,
-                            "protocolos": protocolos_str,
+                            "nome": nome_cliente,
+                            "email": email_cliente,
+                            "protocolos": detalhes_str,
                             "fileName": pdf_file.name,
                             "fileBytes": file_bytes
                         }
@@ -157,15 +154,15 @@ if menu == "➕ Novo Nutribook":
                         response = requests.post(WEBAPP_URL, json=payload)
                         
                         if response.status_code == 200 and response.json().get("status") == "success":
-                            st.success(f"✅ Nutribook para **{nome_paciente}** registrado com sucesso!")
+                            st.success(f"✅ Orçamento para **{nome_cliente}** registrado com sucesso!")
                         else:
                             st.error(f"Erro ao registrar: {response.text}")
             else:
-                st.error("Por favor, preencha o Nome do Paciente e selecione um arquivo PDF.")
+                st.error("Por favor, preencha o Nome do Cliente e selecione um arquivo PDF.")
 
-elif menu == "📋 Painel Nutribook":
-    st.title("📄 Painel Nutribook")
-    st.write("Acompanhe os indicadores de geração, faturamento e histórico completo.")
+elif menu == "📋 Painel de Orçamentos":
+    st.title("📋 Painel de Orçamentos")
+    st.write("Acompanhe os indicadores de emissão, faturamento e histórico completo.")
     st.divider()
     
     df_dados = carregar_dados_planilha()
@@ -177,7 +174,7 @@ elif menu == "📋 Painel Nutribook":
         df_dados['Data_Parsed'] = pd.to_datetime(df_dados[col_data], dayfirst=True, errors='coerce')
         df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower() == 'concluído']
         
-        VALOR_NUTRIBOOK = 5.00
+        VALOR_UNIDADE = 200.00  # Exemplo de valor por lote/mensalidade de orçamento
         total_historico = len(df_concluidos)
         agora = pd.Timestamp.now()
         
@@ -187,8 +184,8 @@ elif menu == "📋 Painel Nutribook":
         ]
         total_mes = len(df_mes_atual)
         
-        faturamento_mes = total_mes * VALOR_NUTRIBOOK
-        faturamento_total = total_historico * VALOR_NUTRIBOOK
+        faturamento_mes = total_mes * VALOR_UNIDADE
+        faturamento_total = total_historico * VALOR_UNIDADE
 
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         with kpi1: st.metric("Total Concluídos (Geral)", f"{total_historico}")
@@ -197,7 +194,7 @@ elif menu == "📋 Painel Nutribook":
         with kpi4: st.metric("Faturamento Acumulado", f"R$ {faturamento_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
         st.markdown("---")
-        st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
+        st.subheader("📈 Evolução Mensal (Orçamentos Concluídos)")
         
         if not df_concluidos.empty and df_concluidos['Data_Parsed'].notna().any():
             df_grafico = (
@@ -210,7 +207,7 @@ elif menu == "📋 Painel Nutribook":
             st.bar_chart(df_grafico.set_index('Mês/Ano')[['Quantidade']], height=260)
 
         st.markdown("---")
-        st.subheader("📋 Histórico de Pedidos")
+        st.subheader("📋 Histórico de Orçamentos")
         
         status_unicos = list(df_dados[col_status].dropna().unique())
         status_filtro = st.selectbox("Filtrar por Status:", ["Todos"] + status_unicos)
@@ -219,7 +216,6 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        # Busca dinâmica das colunas sem duplicatas
         c_data = next((c for c in df_exibicao.columns if 'carimbo' in c.lower() or 'data' in c.lower()), None)
         c_nome = next((c for c in df_exibicao.columns if 'nome' in c.lower()), None)
         c_email = next((c for c in df_exibicao.columns if 'email' in c.lower() or 'e-mail' in c.lower()), None)
@@ -231,23 +227,23 @@ elif menu == "📋 Painel Nutribook":
 
         mapa_colunas = {}
         if c_data: mapa_colunas[c_data] = "Carimbo de data/hora"
-        if c_nome: mapa_colunas[c_nome] = "Nome do Paciente"
-        if c_email: mapa_colunas[c_email] = "E-mail do Paciente"
-        if c_perfil: mapa_colunas[c_perfil] = "Perfil / Protocolo"
-        if c_link: mapa_colunas[c_link] = "Link Nutribook"
+        if c_nome: mapa_colunas[c_nome] = "Nome do Cliente"
+        if c_email: mapa_colunas[c_email] = "E-mail do Cliente"
+        if c_perfil: mapa_colunas[c_perfil] = "Escopo / Detalhes"
+        if c_link: mapa_colunas[c_link] = "Link do Orçamento"
         if c_status: mapa_colunas[c_status] = "Status"
 
         cols_origem = list(mapa_colunas.keys())
         df_final = df_exibicao[cols_origem].rename(columns=mapa_colunas)
 
         for col in df_final.columns:
-            if col != "Link Nutribook":
+            if col != "Link do Orçamento":
                 df_final[col] = df_final[col].fillna("").astype(str).replace({'None': '', 'nan': '', '<NA>': ''})
 
         config_colunas = {}
-        if "Link Nutribook" in df_final.columns:
-            config_colunas["Link Nutribook"] = st.column_config.LinkColumn(
-                "Link Nutribook",
+        if "Link do Orçamento" in df_final.columns:
+            config_colunas["Link do Orçamento"] = st.column_config.LinkColumn(
+                "Link do Orçamento",
                 display_text="🔗"
             )
 
