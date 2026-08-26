@@ -60,7 +60,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados_planilha():
     try:
-        df = conn.read(spreadsheet=GOOGLE_SHEET_URL, ttl=0)
+        df = conn.read(spreadsheet=GOOGLE_SHEET_URL, worksheet="Form_Responses", ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
         return df
@@ -164,7 +164,7 @@ elif menu == "📋 Painel de Orçamentos":
         col_whats = next((c for c in df_dados.columns if "whatsapp" in c.lower() or "zap" in c.lower()), df_dados.columns[2])
         col_resumo = next((c for c in df_dados.columns if "resumo" in c.lower()), df_dados.columns[3])
         col_itens = next((c for c in df_dados.columns if "itens" in c.lower()), df_dados.columns[4])
-        col_status = next((c for c in df_dados.columns if "status" in c.lower()), df_dados.columns[-2])
+        col_status = next((c for c in df_dados.columns if "status" in c.lower()), df_dados.columns[-1])
         
         # Procura coluna de link do PDF (se houver)
         col_pdf = next((c for c in df_dados.columns if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()), None)
@@ -217,22 +217,30 @@ elif menu == "📋 Painel de Orçamentos":
         df_exibir["Resumo do Serviço"] = df_concluidos[col_resumo]
         df_exibir["Valor Total"] = df_concluidos["Valor Total"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
         
+        config_colunas = {
+            "Data do Envio": st.column_config.TextColumn("Data do Envio"),
+            "Cliente": st.column_config.TextColumn("Cliente"),
+            "WhatsApp": st.column_config.TextColumn("WhatsApp"),
+            "Resumo do Serviço": st.column_config.TextColumn("Resumo do Serviço"),
+            "Valor Total": st.column_config.TextColumn("Valor Total")
+        }
+
         if col_pdf:
             df_exibir["Proposta (PDF)"] = df_concluidos[col_pdf]
+            config_colunas["Proposta (PDF)"] = st.column_config.LinkColumn(
+                "Proposta (PDF)",
+                help="Clique para baixar ou abrir o PDF do orçamento",
+                display_text="📥 Abrir PDF"
+            )
         else:
-            df_exibir["Proposta (PDF)"] = "📄 Ver PDF"
+            df_exibir["Proposta (PDF)"] = "Aguardando Link"
+            config_colunas["Proposta (PDF)"] = st.column_config.TextColumn("Proposta (PDF)")
 
         st.dataframe(
             df_exibir,
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Proposta (PDF)": st.column_config.LinkColumn(
-                    "Proposta (PDF)",
-                    help="Clique para baixar ou abrir o PDF do orçamento",
-                    display_text="📥 Abrir PDF"
-                )
-            }
+            column_config=config_colunas
         )
     else:
         st.info("Nenhum dado encontrado na planilha.")
