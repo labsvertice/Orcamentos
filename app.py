@@ -4,13 +4,12 @@ import re
 import pandas as pd
 import requests
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 
 # COLE A URL DO SEU WEB APP DO APPS SCRIPT AQUI
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
 
-# URL DA PLANILHA DO GOOGLE SHEETS
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit?gid=1499333125#gid=1499333125"
+# URL DE EXPORTAÇÃO CSV DA SUA PLANILHA (GARANTE LEITURA INSTANTÂNEA SEM TRAVAR)
+GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/gviz/tq?tqx=out:csv&sheet=Form_Responses"
 
 # CONFIGURAÇÕES DA EVOLUTION API
 EVOLUTION_API_URL = "http://163.176.133.204:8080"
@@ -56,11 +55,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-conn = st.connection("gsheets", type=GSheetsConnection)
-
 def carregar_dados_planilha():
     try:
-        df = conn.read(spreadsheet=GOOGLE_SHEET_URL, worksheet="Form_Responses", ttl=0)
+        df = pd.read_csv(GOOGLE_SHEET_CSV_URL)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
         return df
@@ -166,13 +163,11 @@ elif menu == "📋 Painel de Orçamentos":
         col_itens = next((c for c in df_dados.columns if "itens" in c.lower()), df_dados.columns[4])
         col_status = next((c for c in df_dados.columns if "status" in c.lower()), df_dados.columns[-1])
         
-        # Procura coluna de link do PDF (se houver)
         col_pdf = next((c for c in df_dados.columns if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()), None)
 
         df_dados["Data_Parsed"] = pd.to_datetime(df_dados[col_carimbo], dayfirst=True, errors="coerce")
         df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower().isin(["concluído", "concluido"])].copy()
 
-        # Cálculo automático do Valor Total adaptado para qualquer formato de item
         def calcular_total(texto):
             if not isinstance(texto, str): return 0.0
             total = 0.0
@@ -209,7 +204,6 @@ elif menu == "📋 Painel de Orçamentos":
         st.markdown("---")
         st.subheader("📋 Histórico de Orçamentos Emitidos")
 
-        # Monta DataFrame limpo para exibição
         df_exibir = pd.DataFrame()
         df_exibir["Data do Envio"] = df_concluidos["Data_Parsed"].dt.strftime("%d/%m/%Y %H:%M")
         df_exibir["Cliente"] = df_concluidos[col_nome]
