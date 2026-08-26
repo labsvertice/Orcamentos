@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
 # COLE A URL DO SEU WEB APP DO APPS SCRIPT AQUI
-WEBAPP_URL = "SUA_URL_DO_WEB_APP_AQUI"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
 
 # CONFIGURAÇÕES DA EVOLUTION API
 EVOLUTION_API_URL = "http://163.176.133.204:8080"
@@ -121,7 +121,7 @@ if menu == "➕ Novo Orçamento":
 
         if submitted:
             if nome_cliente and whatsapp_cliente and resumo_servicos and itens_valores:
-                if WEBAPP_URL == "SUA_URL_DO_WEB_APP_AQUI" or not WEBAPP_URL:
+                if WEBAPP_URL == "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec" or not WEBAPP_URL:
                     st.error("Por favor, configure a URL do seu Apps Script Web App no código.")
                 else:
                     with st.spinner("Registrando e processando proposta..."):
