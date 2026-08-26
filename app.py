@@ -1,5 +1,6 @@
 import base64
 import os
+import re
 import pandas as pd
 import requests
 import streamlit as st
@@ -7,6 +8,9 @@ from streamlit_gsheets import GSheetsConnection
 
 # COLE A URL DO SEU WEB APP DO APPS SCRIPT AQUI
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
+
+# URL DA PLANILHA DO GOOGLE SHEETS
+GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit?gid=1499333125#gid=1499333125"
 
 # CONFIGURAÇÕES DA EVOLUTION API
 EVOLUTION_API_URL = "http://163.176.133.204:8080"
@@ -56,11 +60,11 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados_planilha():
     try:
-        df = conn.read(ttl=0)
+        df = conn.read(spreadsheet=GOOGLE_SHEET_URL, ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
         return df
-    except Exception:
+    except Exception as e:
         return None
 
 @st.cache_data(ttl=15)
@@ -168,19 +172,25 @@ elif menu == "📋 Painel de Orçamentos":
         df_dados["Data_Parsed"] = pd.to_datetime(df_dados[col_carimbo], dayfirst=True, errors="coerce")
         df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower().isin(["concluído", "concluido"])].copy()
 
-        # Cálculo automático do Valor Total extraindo os preços dos itens (ex: R$ 1.500,00)
-        import re
+        # Cálculo automático do Valor Total adaptado para qualquer formato de item
         def calcular_total(texto):
             if not isinstance(texto, str): return 0.0
-            # Procura por padrões como R$ 1.500,00 ou 1500.00
-            valores = re.findall(r'R\$\s*([\d\.]+,\d{2})', texto)
             total = 0.0
-            for v in valores:
-                v_limpo = v.replace('.', '').replace(',', '.')
-                try:
-                    total += float(v_limpo)
-                except:
-                    pass
+            linhas = texto.split('\n')
+            for linha in linhas:
+                parts = re.split(r'[-–:|]', linha)
+                if len(parts) > 1:
+                    parte_valor = parts[-1].strip()
+                    parte_limpa = re.sub(r'[^\d,\.]', '', parte_valor)
+                    if parte_limpa:
+                        if ',' in parte_limpa and '.' in parte_limpa:
+                            parte_limpa = parte_limpa.replace('.', '').replace(',', '.')
+                        elif ',' in parte_limpa:
+                            parte_limpa = parte_limpa.replace(',', '.')
+                        try:
+                            total += float(parte_limpa)
+                        except:
+                            pass
             return total
 
         df_concluidos["Valor Total"] = df_concluidos[col_itens].apply(calcular_total)
@@ -229,7 +239,7 @@ elif menu == "📋 Painel de Orçamentos":
         
 elif menu == "📱 Conectar WhatsApp":
     st.title("📱 Status da Conexão WhatsApp")
-    st.write("Gerencie a conexão da Evolution API para disparos automáticos de propostas[cite: 4].")
+    st.write("Gerencie a conexão da Evolution API para disparos automáticos de propostas.")
     st.divider()
 
     if st.button("🔄 Verificar Status / Gerar QR Code"):
