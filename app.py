@@ -152,42 +152,81 @@ elif menu == "📋 Painel de Orçamentos":
 
     if df_dados is not None and not df_dados.empty:
         df_dados = df_dados.copy()
-        col_status = "Status" if "Status" in df_dados.columns else df_dados.columns[-1]
-        col_data = "Carimbo de data/hora" if "Carimbo de data/hora" in df_dados.columns else df_dados.columns[0]
+        df_dados.columns = df_dados.columns.astype(str).str.strip()
 
-        df_dados["Data_Parsed"] = pd.to_datetime(df_dados[col_data], dayfirst=True, errors="coerce")
-        df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower() == "concluído"]
+        # Identificação dinâmica das colunas
+        col_carimbo = next((c for c in df_dados.columns if "carimbo" in c.lower() or "data" in c.lower()), df_dados.columns[0])
+        col_nome = next((c for c in df_dados.columns if "nome" in c.lower()), df_dados.columns[1])
+        col_whats = next((c for c in df_dados.columns if "whatsapp" in c.lower() or "zap" in c.lower()), df_dados.columns[2])
+        col_resumo = next((c for c in df_dados.columns if "resumo" in c.lower()), df_dados.columns[3])
+        col_itens = next((c for c in df_dados.columns if "itens" in c.lower()), df_dados.columns[4])
+        col_status = next((c for c in df_dados.columns if "status" in c.lower()), df_dados.columns[-2])
+        
+        # Procura coluna de link do PDF (se houver)
+        col_pdf = next((c for c in df_dados.columns if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()), None)
+
+        df_dados["Data_Parsed"] = pd.to_datetime(df_dados[col_carimbo], dayfirst=True, errors="coerce")
+        df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower().isin(["concluído", "concluido"])].copy()
+
+        # Cálculo automático do Valor Total extraindo os preços dos itens (ex: R$ 1.500,00)
+        import re
+        def calcular_total(texto):
+            if not isinstance(texto, str): return 0.0
+            # Procura por padrões como R$ 1.500,00 ou 1500.00
+            valores = re.findall(r'R\$\s*([\d\.]+,\d{2})', texto)
+            total = 0.0
+            for v in valores:
+                v_limpo = v.replace('.', '').replace(',', '.')
+                try:
+                    total += float(v_limpo)
+                except:
+                    pass
+            return total
+
+        df_concluidos["Valor Total"] = df_concluidos[col_itens].apply(calcular_total)
 
         total_historico = len(df_concluidos)
         agora = pd.Timestamp.now()
         df_mes_atual = df_concluidos[(df_concluidos["Data_Parsed"].dt.month == agora.month) & (df_concluidos["Data_Parsed"].dt.year == agora.year)]
         total_mes = len(df_mes_atual)
+        faturamento_mes = df_mes_atual["Valor Total"].sum()
 
-        kpi1, kpi2 = st.columns(2)
-        with kpi1: st.metric("Total Concluídos (Geral)", f"{total_historico}")
+        kpi1, kpi2, kpi3 = st.columns(3)
+        with kpi1: st.metric("Total Concluídos", f"{total_historico}")
         with kpi2: st.metric("Concluídos no Mês", f"{total_mes}")
+        with kpi3: st.metric("Volume no Mês", f"R$ {faturamento_mes:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
         st.markdown("---")
-        st.subheader("📈 Evolução Mensal (Orçamentos Concluídos)")
-        df_validas = df_concluidos.dropna(subset=["Data_Parsed"])
-        if not df_validas.empty:
-            df_grafico = df_validas.groupby(df_validas["Data_Parsed"].dt.to_period("M")).size().reset_index(name="Quantidade")
-            df_grafico["Mês/Ano"] = df_grafico["Data_Parsed"].astype(str)
-            st.bar_chart(df_grafico.set_index("Mês/Ano")[["Quantidade"]], height=260)
+        st.subheader("📋 Histórico de Orçamentos Emitidos")
 
-        st.markdown("---")
-        st.subheader("📋 Histórico de Orçamentos")
-        status_unicos = list(df_dados[col_status].dropna().unique())
-        status_filtro = st.selectbox("Filtrar por Status:", ["Todos"] + status_unicos)
+        # Monta DataFrame limpo para exibição
+        df_exibir = pd.DataFrame()
+        df_exibir["Data do Envio"] = df_concluidos["Data_Parsed"].dt.strftime("%d/%m/%Y %H:%M")
+        df_exibir["Cliente"] = df_concluidos[col_nome]
+        df_exibir["WhatsApp"] = df_concluidos[col_whats]
+        df_exibir["Resumo do Serviço"] = df_concluidos[col_resumo]
+        df_exibir["Valor Total"] = df_concluidos["Valor Total"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        
+        if col_pdf:
+            df_exibir["Proposta (PDF)"] = df_concluidos[col_pdf]
+        else:
+            df_exibir["Proposta (PDF)"] = "📄 Ver PDF"
 
-        df_exibicao = df_dados.copy()
-        if status_filtro != "Todos":
-            df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
-
-        st.dataframe(df_exibicao, use_container_width=True, hide_index=True)
+        st.dataframe(
+            df_exibir,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Proposta (PDF)": st.column_config.LinkColumn(
+                    "Proposta (PDF)",
+                    help="Clique para baixar ou abrir o PDF do orçamento",
+                    display_text="📥 Abrir PDF"
+                )
+            }
+        )
     else:
         st.info("Nenhum dado encontrado na planilha.")
-
+        
 elif menu == "📱 Conectar WhatsApp":
     st.title("📱 Status da Conexão WhatsApp")
     st.write("Gerencie a conexão da Evolution API para disparos automáticos de propostas[cite: 4].")
