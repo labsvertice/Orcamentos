@@ -10,6 +10,9 @@ from streamlit_gsheets import GSheetsConnection
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
 
 # CONFIGURAÇÕES DA EVOLUTION API
+# IMPORTANTE:
+# O código legado do Proposta Inteligente veio com a instância "nutribook".
+# Não alteramos esse valor sem o nome correto da instância do Proposta Inteligente.
 EVOLUTION_API_URL = "http://163.176.133.204:8080"
 API_KEY = "nutribook_secret_key_2026"
 INSTANCE_NAME = "nutribook"
