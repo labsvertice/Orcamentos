@@ -95,6 +95,262 @@ def checar_status_whatsapp_rapido():
         pass
     return False
 
+
+# =================================================================================
+# 2. AUTENTICAÇÃO PRÓPRIA — FASE 2
+# =================================================================================
+# PILOTO:
+# A senha é lida em texto simples da aba Usuarios, conforme definido para os testes.
+# Antes da produção, devemos migrar para hash/armazenamento seguro.
+
+def localizar_coluna(df, candidatos):
+    if df is None or df.empty:
+        return None
+
+    mapa = {str(c).strip().lower(): c for c in df.columns}
+
+    for candidato in candidatos:
+        chave = str(candidato).strip().lower()
+        if chave in mapa:
+            return mapa[chave]
+
+    return None
+
+
+def valor_ativo(valor):
+    return str(valor).strip().lower() in {"sim", "true", "1", "ativo", "yes"}
+
+
+def carregar_usuarios():
+    try:
+        df = conn.read(worksheet="Usuarios", ttl=0)
+        if df is not None and not df.empty:
+            df.columns = df.columns.astype(str).str.strip()
+        return df
+    except Exception:
+        return None
+
+
+def carregar_empresas():
+    try:
+        df = conn.read(worksheet="Empresas", ttl=0)
+        if df is not None and not df.empty:
+            df.columns = df.columns.astype(str).str.strip()
+        return df
+    except Exception:
+        return None
+
+
+def autenticar_usuario(login, senha):
+    df = carregar_usuarios()
+
+    if df is None or df.empty:
+        return None, "Não foi possível carregar a aba Usuarios."
+
+    c_login = localizar_coluna(df, ["Login"])
+    c_senha = localizar_coluna(df, ["Senha"])
+    c_nome = localizar_coluna(df, ["Nome"])
+    c_empresa = localizar_coluna(df, ["Empresa_ID", "Empresa"])
+    c_perfil = localizar_coluna(df, ["Perfil_Acesso", "Perfil"])
+    c_ativo = localizar_coluna(df, ["Ativo"])
+    c_usuario = localizar_coluna(df, ["Usuario_ID", "Usuario ID"])
+
+    obrigatorias = {
+        "Login": c_login,
+        "Senha": c_senha,
+        "Nome": c_nome,
+        "Empresa_ID": c_empresa,
+        "Perfil_Acesso": c_perfil,
+        "Ativo": c_ativo,
+    }
+
+    faltantes = [nome for nome, coluna in obrigatorias.items() if not coluna]
+
+    if faltantes:
+        return None, (
+            "A aba Usuarios está incompleta. "
+            f"Colunas ausentes: {', '.join(faltantes)}."
+        )
+
+    login_normalizado = str(login or "").strip().lower()
+
+    df["__login"] = (
+        df[c_login]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    encontrados = df[df["__login"] == login_normalizado].copy()
+
+    if encontrados.empty:
+        return None, "Login ou senha inválidos."
+
+    if len(encontrados) > 1:
+        return None, "Este login está duplicado na aba Usuarios. Procure o suporte."
+
+    registro = encontrados.iloc[0]
+
+    if not valor_ativo(registro[c_ativo]):
+        return None, "Este usuário está inativo no Proposta Inteligente."
+
+    if str(senha or "") != str(registro[c_senha] or ""):
+        return None, "Login ou senha inválidos."
+
+    return {
+        "usuario_id": str(registro[c_usuario]).strip() if c_usuario else "",
+        "nome": str(registro[c_nome]).strip(),
+        "login": login_normalizado,
+        "empresa_ref": str(registro[c_empresa]).strip(),
+        "perfil_acesso": str(registro[c_perfil]).strip(),
+    }, None
+
+
+def obter_empresa(empresa_ref):
+    df = carregar_empresas()
+
+    if df is None or df.empty:
+        return None, "Não foi possível carregar a aba Empresas."
+
+    c_id = localizar_coluna(df, ["Empresa_ID", "Empresa ID"])
+    c_nome = localizar_coluna(df, ["Nome_Empresa", "Nome Empresa", "Empresa"])
+    c_template = localizar_coluna(df, ["Template_ID", "Template ID"])
+    c_pasta = localizar_coluna(df, ["Pasta_Destino_ID", "Pasta Destino ID"])
+    c_ativo = localizar_coluna(df, ["Ativo"])
+    c_cota = localizar_coluna(df, ["Cota"])
+
+    if not c_id or not c_nome or not c_ativo:
+        return None, (
+            "A aba Empresas está incompleta. "
+            "São esperadas: Empresa_ID, Nome_Empresa e Ativo."
+        )
+
+    referencia = str(empresa_ref or "").strip().lower()
+
+    ids = df[c_id].fillna("").astype(str).str.strip().str.lower()
+    nomes = df[c_nome].fillna("").astype(str).str.strip().str.lower()
+
+    # Aceita tanto EMP001 quanto o nome da empresa no piloto.
+    encontrados = df[(ids == referencia) | (nomes == referencia)].copy()
+
+    if encontrados.empty:
+        return None, (
+            f"A empresa '{empresa_ref}' não foi encontrada na aba Empresas."
+        )
+
+    if len(encontrados) > 1:
+        return None, (
+            f"Existem múltiplas empresas correspondentes a '{empresa_ref}'."
+        )
+
+    registro = encontrados.iloc[0]
+
+    if not valor_ativo(registro[c_ativo]):
+        return None, "A empresa vinculada ao usuário está inativa."
+
+    return {
+        "empresa_id": str(registro[c_id]).strip(),
+        "nome_empresa": str(registro[c_nome]).strip(),
+        "template_id": str(registro[c_template]).strip() if c_template else "",
+        "pasta_destino_id": str(registro[c_pasta]).strip() if c_pasta else "",
+        "cota": registro[c_cota] if c_cota else "",
+    }, None
+
+
+def limpar_sessao():
+    for chave in [
+        "autenticado",
+        "usuario_id",
+        "usuario_nome",
+        "usuario_login",
+        "empresa_id",
+        "empresa_nome",
+        "perfil_acesso",
+        "template_id",
+        "pasta_destino_id",
+        "cota_empresa",
+    ]:
+        st.session_state.pop(chave, None)
+
+
+def tela_login():
+    st.markdown("<div style='height: 70px;'></div>", unsafe_allow_html=True)
+
+    _, centro, _ = st.columns([1, 1.1, 1])
+
+    with centro:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", width=160)
+
+        st.markdown(
+            "<div style='text-align:center; color:#112214; font-size:30px; "
+            "font-weight:700; margin:28px 0 8px 0;'>🔐 Acesso ao Portal Comercial</div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            "<div style='text-align:center; color:#334033; font-size:16px; "
+            "margin-bottom:22px;'>Entre com seu login e senha para acessar o Proposta Inteligente.</div>",
+            unsafe_allow_html=True,
+        )
+
+        with st.form("form_login"):
+            login = st.text_input(
+                "Login",
+                placeholder="Ex: joao_empresaa",
+            )
+
+            senha = st.text_input(
+                "Senha",
+                type="password",
+                placeholder="Digite sua senha",
+            )
+
+            entrar = st.form_submit_button(
+                "ENTRAR",
+                use_container_width=True,
+            )
+
+        if entrar:
+            if not login or not senha:
+                st.error("Informe o login e a senha.")
+            else:
+                usuario, erro = autenticar_usuario(login, senha)
+
+                if erro:
+                    st.error(erro)
+                else:
+                    empresa, erro_empresa = obter_empresa(usuario["empresa_ref"])
+
+                    if erro_empresa:
+                        st.error(erro_empresa)
+                    else:
+                        st.session_state["autenticado"] = True
+                        st.session_state["usuario_id"] = usuario["usuario_id"]
+                        st.session_state["usuario_nome"] = usuario["nome"]
+                        st.session_state["usuario_login"] = usuario["login"]
+                        st.session_state["empresa_id"] = empresa["empresa_id"]
+                        st.session_state["empresa_nome"] = empresa["nome_empresa"]
+                        st.session_state["perfil_acesso"] = usuario["perfil_acesso"]
+                        st.session_state["template_id"] = empresa["template_id"]
+                        st.session_state["pasta_destino_id"] = empresa["pasta_destino_id"]
+                        st.session_state["cota_empresa"] = empresa["cota"]
+                        st.rerun()
+
+
+if not st.session_state.get("autenticado", False):
+    tela_login()
+    st.stop()
+
+
+# Identidade disponível em todas as telas durante a sessão.
+NOME_USUARIO_LOGADO = st.session_state["usuario_nome"]
+LOGIN_USUARIO_LOGADO = st.session_state["usuario_login"]
+EMPRESA_ID_LOGADA = st.session_state["empresa_id"]
+NOME_EMPRESA_LOGADA = st.session_state["empresa_nome"]
+PERFIL_ACESSO_LOGADO = st.session_state["perfil_acesso"]
+
 # =================================================================================
 # 2. SIDEBAR / NAV
 # =================================================================================
@@ -102,10 +358,16 @@ with st.sidebar:
     if os.path.exists("logo.png"):
         st.image("logo.png", width=160)
     else:
-        st.title("📊 Setor Reformas")
+        st.title("📊 Proposta Inteligente")
 
-    st.markdown("#### Olá, **Jean Victor**! 👋")
-    st.caption("Painel de Controle Comercial")
+    st.markdown(f"#### Olá, **{NOME_USUARIO_LOGADO}**! 👋")
+    st.caption(NOME_EMPRESA_LOGADA)
+    st.caption(f"{LOGIN_USUARIO_LOGADO} • {PERFIL_ACESSO_LOGADO}")
+
+    if st.button("↪️ Sair"):
+        limpar_sessao()
+        st.rerun()
+
     st.divider()
 
     menu = st.radio(
