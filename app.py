@@ -170,7 +170,7 @@ def ler_aba_sheets(nome_aba):
             .values()
             .get(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"'{nome_aba}'!A:Z",
+                range=f"{nome_aba}!A:Z",
             )
             .execute()
         )
@@ -562,17 +562,11 @@ if menu == "➕ Novo Orçamento":
                                 "whatsapp": whatsapp_cliente,
                                 "resumo": resumo_servicos,
                                 "itens": itens_valores,
-                                "instance": INSTANCE_NAME,
-
-                                # Fase 3: identificação automática do usuário.
-                                # Esses valores vêm da sessão autenticada.
-                                "empresa_id": EMPRESA_ID_LOGADA,
-                                "vendedor": NOME_USUARIO_LOGADO,
-                                "usuario_id": st.session_state.get("usuario_id", "")
+                                "instance": INSTANCE_NAME
                             }
                             response = requests.post(WEBAPP_URL, json=payload, timeout=30)
                             if response.status_code == 200 and response.json().get("status") == "success":
-                                st.success(f"✅ Orçamento para **{nome_cliente}** registrado com sucesso para **{NOME_USUARIO_LOGADO}**!")
+                                st.success(f"✅ Orçamento para **{nome_cliente}** registrado com sucesso!")
                             else:
                                 st.error(f"Erro ao registrar: {response.text}")
                         except Exception as e:
@@ -582,7 +576,7 @@ if menu == "➕ Novo Orçamento":
 
 elif menu == "📋 Painel de Orçamentos":
     st.title("📋 Painel de Orçamentos")
-    st.write("Acompanhe os indicadores de emissão e o histórico completo.")
+    st.write("Acompanhe quantidade, volume financeiro e desempenho por período e vendedor.")
     st.divider()
 
     df_dados = carregar_dados_planilha()
@@ -591,105 +585,584 @@ elif menu == "📋 Painel de Orçamentos":
         df_dados = df_dados.copy()
         df_dados.columns = df_dados.columns.astype(str).str.strip()
 
-        # Identificação inteligente das colunas da planilha
-        col_carimbo = next((c for c in df_dados.columns if "carimbo" in c.lower() or "data" in c.lower()), df_dados.columns[0])
-        col_nome = next((c for c in df_dados.columns if "nome" in c.lower()), df_dados.columns[1])
-        col_whats = next((c for c in df_dados.columns if "whatsapp" in c.lower() or "zap" in c.lower()), df_dados.columns[2])
-        col_resumo = next((c for c in df_dados.columns if "resumo" in c.lower()), df_dados.columns[3])
-        col_itens = next((c for c in df_dados.columns if "itens" in c.lower()), df_dados.columns[4])
-        col_status = next((c for c in df_dados.columns if "status" in c.lower()), df_dados.columns[-1])
-        col_pdf = next((c for c in df_dados.columns if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()), None)
+        # ------------------------------------------------------------------
+        # Identificação das colunas
+        # ------------------------------------------------------------------
+        col_carimbo = next(
+            (c for c in df_dados.columns
+             if "carimbo" in c.lower() or "data" in c.lower()),
+            df_dados.columns[0]
+        )
 
-        df_dados["Data_Parsed"] = pd.to_datetime(df_dados[col_carimbo], dayfirst=True, errors="coerce")
-        
-        status_clean = df_dados[col_status].astype(str).str.strip().str.lower()
-        df_concluidos = df_dados[status_clean.isin(["concluído", "concluido"])]
+        col_nome = next(
+            (c for c in df_dados.columns if "nome" in c.lower()),
+            df_dados.columns[1]
+        )
 
-        # Função para calcular o valor total extraído do campo de itens/valores
-        def calcular_total(texto):
-            if not isinstance(texto, str): 
-                return 0.0
-            total = 0.0
-            linhas = texto.split('\n')
-            for linha in linhas:
-                parts = re.split(r'[-–:|]', linha)
-                if len(parts) > 1:
-                    parte_valor = parts[-1].strip()
-                    parte_limpa = re.sub(r'[^\d,\.]', '', parte_valor)
-                    if parte_limpa:
-                        if ',' in parte_limpa and '.' in parte_limpa:
-                            parte_limpa = parte_limpa.replace('.', '').replace(',', '.')
-                        elif ',' in parte_limpa:
-                            parte_limpa = parte_limpa.replace(',', '.')
-                        try:
-                            total += float(parte_limpa)
-                        except:
-                            pass
-            return total
+        col_whats = next(
+            (c for c in df_dados.columns
+             if "whatsapp" in c.lower() or "zap" in c.lower()),
+            df_dados.columns[2]
+        )
 
-        df_concluidos = df_concluidos.copy()
-        df_concluidos["Valor Total"] = df_concluidos[col_itens].apply(calcular_total)
+        col_resumo = next(
+            (c for c in df_dados.columns if "resumo" in c.lower()),
+            df_dados.columns[3]
+        )
 
-        total_historico = len(df_concluidos)
-        agora = pd.Timestamp.now()
-        df_mes_atual = df_concluidos[
-            (df_concluidos["Data_Parsed"].dt.month == agora.month) & 
-            (df_concluidos["Data_Parsed"].dt.year == agora.year)
-        ]
-        total_mes = len(df_mes_atual)
-        faturamento_mes = df_mes_atual["Valor Total"].sum()
-        faturamento_total = df_concluidos["Valor Total"].sum()
+        col_itens = next(
+            (c for c in df_dados.columns if "itens" in c.lower()),
+            df_dados.columns[4]
+        )
 
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        with kpi1: 
-            st.metric("Total Concluídos", f"{total_historico}")
-        with kpi2: 
-            st.metric("Concluídos no Mês", f"{total_mes}")
-        with kpi3: 
-            st.metric("Volume no Mês", f"R$ {faturamento_mes:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        with kpi4: 
-            st.metric("Volume Acumulado", f"R$ {faturamento_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col_status = next(
+            (c for c in df_dados.columns if "status" in c.lower()),
+            df_dados.columns[5]
+        )
 
-        st.markdown("---")
-        st.subheader("📋 Histórico de Orçamentos Emitidos")
+        col_empresa = next(
+            (c for c in df_dados.columns if "empresa_id" in c.lower()),
+            None
+        )
 
-        df_exibir = pd.DataFrame()
-        df_exibir["Data do Envio"] = df_concluidos["Data_Parsed"].dt.strftime("%d/%m/%Y %H:%M")
-        df_exibir["Cliente"] = df_concluidos[col_nome]
-        df_exibir["WhatsApp"] = df_concluidos[col_whats]
-        df_exibir["Resumo do Serviço"] = df_concluidos[col_resumo]
-        df_exibir["Valor Total"] = df_concluidos["Valor Total"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        
-        config_colunas = {
-            "Data do Envio": st.column_config.TextColumn("Data do Envio"),
-            "Cliente": st.column_config.TextColumn("Cliente"),
-            "WhatsApp": st.column_config.TextColumn("WhatsApp"),
-            "Resumo do Serviço": st.column_config.TextColumn("Resumo do Serviço"),
-            "Valor Total": st.column_config.TextColumn("Valor Total")
-        }
+        col_vendedor = next(
+            (c for c in df_dados.columns if "vendedor" in c.lower()),
+            None
+        )
 
-        if col_pdf:
-            df_exibir["Proposta (PDF)"] = df_concluidos[col_pdf]
-            config_colunas["Proposta (PDF)"] = st.column_config.LinkColumn(
-                "Proposta (PDF)",
-                help="Clique para baixar ou abrir o PDF do orçamento",
-                display_text="📥 Abrir PDF"
+        col_usuario = next(
+            (c for c in df_dados.columns if "usuario_id" in c.lower()),
+            None
+        )
+
+        col_pdf = next(
+            (c for c in df_dados.columns
+             if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()),
+            None
+        )
+
+        # ------------------------------------------------------------------
+        # Data
+        # ------------------------------------------------------------------
+        df_dados["Data_Parsed"] = pd.to_datetime(
+            df_dados[col_carimbo],
+            dayfirst=True,
+            errors="coerce"
+        )
+
+        # ------------------------------------------------------------------
+        # Empresa: segurança multiempresa
+        # ------------------------------------------------------------------
+        if col_empresa:
+            empresa_clean = (
+                df_dados[col_empresa]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+                .str.lower()
+            )
+
+            empresa_logada = str(EMPRESA_ID_LOGADA).strip().lower()
+
+            df_dados = df_dados[
+                empresa_clean == empresa_logada
+            ].copy()
+
+        else:
+            # Compatibilidade enquanto a planilha ainda não tiver a coluna.
+            st.warning(
+                "A coluna Empresa_ID ainda não foi encontrada em Form_Responses."
+            )
+
+        # ------------------------------------------------------------------
+        # Vendedor: administrador vê todos; vendedor vê apenas o próprio
+        # ------------------------------------------------------------------
+        perfil_normalizado = str(PERFIL_ACESSO_LOGADO).strip().lower()
+
+        if col_vendedor:
+            df_dados["Vendedor_Exibicao"] = (
+                df_dados[col_vendedor]
+                .fillna("")
+                .astype(str)
+                .str.strip()
             )
         else:
-            df_exibir["Proposta (PDF)"] = "Aguardando Link"
-            config_colunas["Proposta (PDF)"] = st.column_config.TextColumn("Proposta (PDF)")
+            df_dados["Vendedor_Exibicao"] = ""
 
-        # Limpeza final de strings para evitar erros na tabela
-        for col in df_exibir.columns:
-            if col != "Proposta (PDF)":
-                df_exibir[col] = df_exibir[col].fillna("").astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+        if perfil_normalizado != "administrador":
+            vendedor_logado = str(NOME_USUARIO_LOGADO).strip().lower()
 
-        st.dataframe(
-            df_exibir,
-            use_container_width=True,
-            hide_index=True,
-            column_config=config_colunas
+            df_dados = df_dados[
+                df_dados["Vendedor_Exibicao"]
+                .str.lower()
+                .eq(vendedor_logado)
+            ].copy()
+
+        # ------------------------------------------------------------------
+        # Status
+        # ------------------------------------------------------------------
+        df_dados["Status_Clean"] = (
+            df_dados[col_status]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
         )
+
+        # Só orçamentos efetivamente concluídos entram nos KPIs financeiros.
+        df_base = df_dados[
+            df_dados["Status_Clean"].isin(["concluído", "concluido"])
+        ].copy()
+
+        if df_base.empty:
+            st.info("Nenhum orçamento concluído encontrado para este acesso.")
+        else:
+
+            # ------------------------------------------------------------------
+            # Valor total — cálculo temporário a partir dos itens.
+            # Na Fase 4 passaremos a usar o valor consolidado pela IA.
+            # ------------------------------------------------------------------
+            def parse_valor_brasileiro(valor_texto):
+                texto = str(valor_texto or "").strip()
+
+                if not texto:
+                    return 0.0
+
+                # Remove símbolos/espaços, mantendo números, ponto e vírgula.
+                texto = re.sub(r"[^\d,.\-]", "", texto)
+
+                if not texto:
+                    return 0.0
+
+                if "," in texto and "." in texto:
+                    # Ex.: 1.500,00
+                    if texto.rfind(",") > texto.rfind("."):
+                        texto = texto.replace(".", "").replace(",", ".")
+                    else:
+                        # Ex.: 1,500.00
+                        texto = texto.replace(",", "")
+                elif "," in texto:
+                    # Ex.: 1500,00
+                    texto = texto.replace(",", ".")
+                else:
+                    # Ex.: 1500.00 ou 1500
+                    pass
+
+                try:
+                    return float(texto)
+                except (ValueError, TypeError):
+                    return 0.0
+
+            def calcular_total_orcamento(texto):
+                if pd.isna(texto):
+                    return 0.0
+
+                texto = str(texto)
+                total = 0.0
+
+                for linha in texto.splitlines():
+                    linha = linha.strip()
+
+                    if not linha:
+                        continue
+
+                    # Prioridade 1: valores com R$.
+                    valores_monetarios = re.findall(
+                        r"R\$\s*[-]?\s*[\d\.\,]+",
+                        linha,
+                        flags=re.IGNORECASE
+                    )
+
+                    if valores_monetarios:
+                        total += parse_valor_brasileiro(
+                            valores_monetarios[-1]
+                        )
+                        continue
+
+                    # Prioridade 2: último número da linha.
+                    candidatos = re.findall(
+                        r"[-]?\d+(?:[.,]\d+)?",
+                        linha
+                    )
+
+                    if candidatos:
+                        total += parse_valor_brasileiro(candidatos[-1])
+
+                return total
+
+            df_base["Valor_Total"] = (
+                df_base[col_itens]
+                .apply(calcular_total_orcamento)
+            )
+
+            # ------------------------------------------------------------------
+            # Filtros
+            # ------------------------------------------------------------------
+            st.subheader("🔎 Filtros")
+
+            col_filtro1, col_filtro2, col_filtro3 = st.columns([1, 1, 1])
+
+            with col_filtro1:
+                periodo = st.selectbox(
+                    "Período",
+                    [
+                        "Este mês",
+                        "Hoje",
+                        "Últimos 7 dias",
+                        "Últimos 30 dias",
+                        "Este ano",
+                        "Todo o período",
+                    ],
+                    index=0,
+                )
+
+            with col_filtro2:
+                data_min = df_base["Data_Parsed"].min()
+                data_max = df_base["Data_Parsed"].max()
+
+                if pd.isna(data_min) or pd.isna(data_max):
+                    data_min = pd.Timestamp.now()
+                    data_max = pd.Timestamp.now()
+
+                intervalo_datas = st.date_input(
+                    "Intervalo",
+                    value=(
+                        data_min.date(),
+                        data_max.date(),
+                    ),
+                )
+
+            with col_filtro3:
+                if (
+                    perfil_normalizado == "administrador"
+                    and col_vendedor
+                    and not df_base.empty
+                ):
+                    vendedores = sorted(
+                        [
+                            v for v in
+                            df_base["Vendedor_Exibicao"]
+                            .dropna()
+                            .astype(str)
+                            .str.strip()
+                            .unique()
+                            if v
+                        ]
+                    )
+
+                    vendedor_filtro = st.selectbox(
+                        "Vendedor",
+                        ["Todos"] + vendedores,
+                        index=0,
+                    )
+                else:
+                    vendedor_filtro = "Todos"
+
+            agora = pd.Timestamp.now()
+
+            if len(intervalo_datas) == 2:
+                inicio_custom = pd.Timestamp(intervalo_datas[0])
+                fim_custom = (
+                    pd.Timestamp(intervalo_datas[1])
+                    + pd.Timedelta(days=1)
+                    - pd.Timedelta(seconds=1)
+                )
+            else:
+                inicio_custom = pd.Timestamp(intervalo_datas[0])
+                fim_custom = (
+                    inicio_custom
+                    + pd.Timedelta(days=1)
+                    - pd.Timedelta(seconds=1)
+                )
+
+            if periodo == "Hoje":
+                inicio_periodo = agora.normalize()
+                fim_periodo = (
+                    inicio_periodo
+                    + pd.Timedelta(days=1)
+                    - pd.Timedelta(seconds=1)
+                )
+
+            elif periodo == "Últimos 7 dias":
+                inicio_periodo = (
+                    agora.normalize()
+                    - pd.Timedelta(days=6)
+                )
+                fim_periodo = agora
+
+            elif periodo == "Últimos 30 dias":
+                inicio_periodo = (
+                    agora.normalize()
+                    - pd.Timedelta(days=29)
+                )
+                fim_periodo = agora
+
+            elif periodo == "Este ano":
+                inicio_periodo = pd.Timestamp(
+                    year=agora.year,
+                    month=1,
+                    day=1
+                )
+                fim_periodo = agora
+
+            elif periodo == "Todo o período":
+                inicio_periodo = df_base["Data_Parsed"].min()
+                fim_periodo = df_base["Data_Parsed"].max()
+
+            else:
+                # Este mês
+                inicio_periodo = pd.Timestamp(
+                    year=agora.year,
+                    month=agora.month,
+                    day=1
+                )
+                fim_periodo = agora
+
+            # O intervalo manual funciona como refinamento adicional.
+            inicio_final = max(
+                inicio_periodo,
+                inicio_custom
+            )
+
+            fim_final = min(
+                fim_periodo,
+                fim_custom
+            )
+
+            df_filtrado = df_base[
+                (df_base["Data_Parsed"] >= inicio_final)
+                & (df_base["Data_Parsed"] <= fim_final)
+            ].copy()
+
+            if (
+                perfil_normalizado == "administrador"
+                and vendedor_filtro != "Todos"
+            ):
+                df_filtrado = df_filtrado[
+                    df_filtrado["Vendedor_Exibicao"].eq(vendedor_filtro)
+                ].copy()
+
+            # ------------------------------------------------------------------
+            # KPIs
+            # ------------------------------------------------------------------
+            qtd_orcamentos = len(df_filtrado)
+            valor_total = df_filtrado["Valor_Total"].sum()
+            ticket_medio = (
+                valor_total / qtd_orcamentos
+                if qtd_orcamentos
+                else 0.0
+            )
+
+            qtd_vendedores = (
+                df_filtrado["Vendedor_Exibicao"]
+                .replace("", pd.NA)
+                .dropna()
+                .nunique()
+            )
+
+            def moeda_br(valor):
+                return (
+                    f"R$ {valor:,.2f}"
+                    .replace(",", "X")
+                    .replace(".", ",")
+                    .replace("X", ".")
+                )
+
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+
+            with kpi1:
+                st.metric(
+                    "Orçamentos",
+                    f"{qtd_orcamentos}"
+                )
+
+            with kpi2:
+                st.metric(
+                    "Valor Total Orçado",
+                    moeda_br(valor_total)
+                )
+
+            with kpi3:
+                st.metric(
+                    "Ticket Médio",
+                    moeda_br(ticket_medio)
+                )
+
+            with kpi4:
+                if perfil_normalizado == "administrador":
+                    st.metric(
+                        "Vendedores",
+                        f"{qtd_vendedores}"
+                    )
+                else:
+                    st.metric(
+                        "Status",
+                        "Ativo"
+                    )
+
+            st.markdown("---")
+
+            # ------------------------------------------------------------------
+            # GRÁFICO 1 — evolução mensal
+            # ------------------------------------------------------------------
+            st.subheader("📈 Evolução dos Orçamentos")
+
+            df_grafico = df_filtrado.dropna(
+                subset=["Data_Parsed"]
+            ).copy()
+
+            if not df_grafico.empty:
+                df_grafico["Mês"] = (
+                    df_grafico["Data_Parsed"]
+                    .dt.to_period("M")
+                    .dt.to_timestamp()
+                )
+
+                mensal = (
+                    df_grafico
+                    .groupby("Mês")
+                    .agg(
+                        Orçamentos=("Valor_Total", "size"),
+                        Valor=("Valor_Total", "sum")
+                    )
+                    .sort_index()
+                )
+
+                st.line_chart(
+                    mensal[["Orçamentos"]],
+                    use_container_width=True
+                )
+            else:
+                st.info("Sem dados para o gráfico no período selecionado.")
+
+            # ------------------------------------------------------------------
+            # GRÁFICO 2 — desempenho por vendedor
+            # ------------------------------------------------------------------
+            if perfil_normalizado == "administrador":
+                st.subheader("👥 Desempenho por Vendedor")
+
+                if not df_filtrado.empty:
+                    por_vendedor = (
+                        df_filtrado
+                        .groupby("Vendedor_Exibicao")
+                        .agg(
+                            Orçamentos=("Valor_Total", "size"),
+                            Valor_Total=("Valor_Total", "sum")
+                        )
+                        .sort_values(
+                            "Valor_Total",
+                            ascending=False
+                        )
+                    )
+
+                    col_chart1, col_chart2 = st.columns(2)
+
+                    with col_chart1:
+                        st.caption("Quantidade de orçamentos")
+                        st.bar_chart(
+                            por_vendedor["Orçamentos"],
+                            use_container_width=True
+                        )
+
+                    with col_chart2:
+                        st.caption("Valor total orçado")
+                        st.bar_chart(
+                            por_vendedor["Valor_Total"],
+                            use_container_width=True
+                        )
+                else:
+                    st.info("Sem dados por vendedor no período selecionado.")
+
+            # ------------------------------------------------------------------
+            # HISTÓRICO
+            # ------------------------------------------------------------------
+            st.markdown("---")
+            st.subheader("📋 Histórico de Orçamentos")
+
+            df_exibir = pd.DataFrame()
+
+            df_exibir["Data do Envio"] = (
+                df_filtrado["Data_Parsed"]
+                .dt.strftime("%d/%m/%Y %H:%M")
+            )
+
+            df_exibir["Cliente"] = df_filtrado[col_nome]
+            df_exibir["Vendedor"] = df_filtrado["Vendedor_Exibicao"]
+            df_exibir["WhatsApp"] = df_filtrado[col_whats]
+            df_exibir["Resumo do Serviço"] = df_filtrado[col_resumo]
+
+            df_exibir["Valor Total"] = (
+                df_filtrado["Valor_Total"]
+                .apply(moeda_br)
+            )
+
+            df_exibir["Status"] = df_filtrado[col_status]
+
+            config_colunas = {
+                "Data do Envio": st.column_config.TextColumn(
+                    "Data do Envio"
+                ),
+                "Cliente": st.column_config.TextColumn(
+                    "Cliente"
+                ),
+                "Vendedor": st.column_config.TextColumn(
+                    "Vendedor"
+                ),
+                "WhatsApp": st.column_config.TextColumn(
+                    "WhatsApp"
+                ),
+                "Resumo do Serviço": st.column_config.TextColumn(
+                    "Resumo do Serviço"
+                ),
+                "Valor Total": st.column_config.TextColumn(
+                    "Valor Total"
+                ),
+                "Status": st.column_config.TextColumn(
+                    "Status"
+                ),
+            }
+
+            if col_pdf:
+                df_exibir["Proposta (PDF)"] = df_filtrado[col_pdf]
+
+                config_colunas["Proposta (PDF)"] = (
+                    st.column_config.LinkColumn(
+                        "Proposta (PDF)",
+                        help="Clique para abrir o PDF da proposta.",
+                        display_text="📥 Abrir PDF"
+                    )
+                )
+
+            else:
+                df_exibir["Proposta (PDF)"] = "Aguardando Link"
+
+                config_colunas["Proposta (PDF)"] = (
+                    st.column_config.TextColumn(
+                        "Proposta (PDF)"
+                    )
+                )
+
+            for col in df_exibir.columns:
+                if col != "Proposta (PDF)":
+                    df_exibir[col] = (
+                        df_exibir[col]
+                        .fillna("")
+                        .astype(str)
+                        .str.replace(
+                            r"\.0$",
+                            "",
+                            regex=True
+                        )
+                        .str.strip()
+                    )
+
+            st.dataframe(
+                df_exibir,
+                use_container_width=True,
+                hide_index=True,
+                column_config=config_colunas
+            )
+
     else:
         st.info("Nenhum dado encontrado na planilha.")
 
