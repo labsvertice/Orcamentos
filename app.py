@@ -74,6 +74,8 @@ st.markdown(
 # Conexão GSheets oficial do Streamlit
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit"
+
 def carregar_dados_planilha():
     try:
         # Lê a planilha utilizando ttl=0 para garantir dados atualizados sem travamento de cache
@@ -126,7 +128,7 @@ def valor_ativo(valor):
 
 def carregar_usuarios():
     try:
-        df = conn.read(worksheet="Usuarios", ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=1751518313, ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
         return df
@@ -136,7 +138,7 @@ def carregar_usuarios():
 
 def carregar_empresas():
     try:
-        df = conn.read(worksheet="Empresas", ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=751640019, ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
         return df
