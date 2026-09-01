@@ -279,52 +279,6 @@ def checar_status_whatsapp_rapido():
     return False
 
 
-# =================================================================================
-# 2. AUTENTICAÇÃO PRÓPRIA — FASE 2
-# =================================================================================
-# PILOTO:
-# A senha é lida em texto simples da aba Usuarios, conforme definido para os testes.
-# Antes da produção, devemos migrar para hash/armazenamento seguro.
-
-def localizar_coluna(df, candidatos):
-    if df is None or df.empty:
-        return None
-
-    mapa = {str(c).strip().lower(): c for c in df.columns}
-
-    for candidato in candidatos:
-        chave = str(candidato).strip().lower()
-        if chave in mapa:
-            return mapa[chave]
-
-    return None
-
-
-def valor_ativo(valor):
-    return str(valor).strip().lower() in {"sim", "true", "1", "ativo", "yes"}
-
-
-def carregar_usuarios():
-    try:
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Usuarios", ttl=0)
-        if df is not None and not df.empty:
-            df.columns = df.columns.astype(str).str.strip()
-        return df
-    except Exception:
-        return None
-
-
-def carregar_empresas():
-    try:
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Empresas", ttl=0)
-        if df is not None and not df.empty:
-            df.columns = df.columns.astype(str).str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar a aba Empresas: {e}")
-        return None
-
-
 def autenticar_usuario(login, senha):
     df = carregar_usuarios()
 
