@@ -562,11 +562,17 @@ if menu == "➕ Novo Orçamento":
                                 "whatsapp": whatsapp_cliente,
                                 "resumo": resumo_servicos,
                                 "itens": itens_valores,
-                                "instance": INSTANCE_NAME
+                                "instance": INSTANCE_NAME,
+
+                                # Fase 3: identificação automática do usuário.
+                                # Esses valores vêm da sessão autenticada.
+                                "empresa_id": EMPRESA_ID_LOGADA,
+                                "vendedor": NOME_USUARIO_LOGADO,
+                                "usuario_id": st.session_state.get("usuario_id", "")
                             }
                             response = requests.post(WEBAPP_URL, json=payload, timeout=30)
                             if response.status_code == 200 and response.json().get("status") == "success":
-                                st.success(f"✅ Orçamento para **{nome_cliente}** registrado com sucesso!")
+                                st.success(f"✅ Orçamento para **{nome_cliente}** registrado com sucesso para **{NOME_USUARIO_LOGADO}**!")
                             else:
                                 st.error(f"Erro ao registrar: {response.text}")
                         except Exception as e:
