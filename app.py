@@ -129,22 +129,37 @@ def valor_ativo(valor):
 
 def carregar_usuarios():
     try:
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Usuarios", ttl=0)
+        df = conn.read(
+            spreadsheet=SPREADSHEET_URL,
+            worksheet=1751518313,
+            ttl=0,
+        )
+
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
+
         return df
-    except Exception:
+
+    except Exception as e:
+        st.error(f"Erro ao carregar a aba Usuarios (GID 1751518313): {e}")
         return None
 
 
 def carregar_empresas():
     try:
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Empresas", ttl=0)
+        df = conn.read(
+            spreadsheet=SPREADSHEET_URL,
+            worksheet=751640019,
+            ttl=0,
+        )
+
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
+
         return df
+
     except Exception as e:
-        st.error(f"Erro ao carregar a aba Empresas: {e}")
+        st.error(f"Erro ao carregar a aba Empresas (GID 751640019): {e}")
         return None
 
 
