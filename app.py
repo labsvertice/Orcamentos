@@ -124,20 +124,28 @@ def valor_ativo(valor):
 def carregar_usuarios():
     try:
         df = conn.read(worksheet="Usuarios", ttl=0)
+
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
+
         return df
-    except Exception:
+
+    except Exception as e:
+        st.error(f"Erro real ao carregar a aba Usuarios: {e}")
         return None
 
 
 def carregar_empresas():
     try:
         df = conn.read(worksheet="Empresas", ttl=0)
+
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
+
         return df
-    except Exception:
+
+    except Exception as e:
+        st.error(f"Erro real ao carregar a aba Empresas: {e}")
         return None
 
 
