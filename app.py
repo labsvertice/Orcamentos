@@ -4,7 +4,8 @@ import re
 import pandas as pd
 import requests
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 # URL DO SEU APP WEB DO GOOGLE APPS SCRIPT (ORÇAMENTOS)
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
@@ -71,21 +72,197 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Conexão GSheets oficial do Streamlit
-conn = st.connection("gsheets", type=GSheetsConnection)
+# =============================================================================
+# GOOGLE SHEETS — CONEXÃO DIRETA VIA SERVICE ACCOUNT
+# =============================================================================
+#
+# A autenticação é lida do Streamlit Secrets:
+# [connections.gsheets]
+#
+# A planilha do projeto é a que você configurou nos Secrets.
+# Não dependemos do st-gsheets-connection para as abas auxiliares.
+# =============================================================================
 
-# Planilha principal do Proposta Inteligente
-SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit"
+SPREADSHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit"
+)
+
+SPREADSHEET_ID = "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU"
+
+# GIDs confirmados pelo usuário.
+USUARIOS_GID = 1751518313
+EMPRESAS_GID = 751640019
+
+
+def obter_google_sheets_service():
+    """Cria o cliente autenticado do Google Sheets a partir do Secrets."""
+    try:
+        config = st.secrets["connections"]["gsheets"]
+
+        required = [
+            "type",
+            "project_id",
+            "private_key",
+            "client_email",
+            "token_uri",
+        ]
+
+        faltantes = [chave for chave in required if chave not in config]
+        if faltantes:
+            raise RuntimeError(
+                "Secrets incompleto em [connections.gsheets]. "
+                f"Faltando: {', '.join(faltantes)}"
+            )
+
+        service_account_info = {
+            "type": config["type"],
+            "project_id": config["project_id"],
+            "private_key_id": config.get("private_key_id", ""),
+            "private_key": config["private_key"],
+            "client_email": config["client_email"],
+            "client_id": config.get("client_id", ""),
+            "auth_uri": config.get(
+                "auth_uri",
+                "https://accounts.google.com/o/oauth2/auth",
+            ),
+            "token_uri": config["token_uri"],
+            "auth_provider_x509_cert_url": config.get(
+                "auth_provider_x509_cert_url",
+                "https://www.googleapis.com/oauth2/v1/certs",
+            ),
+            "client_x509_cert_url": config.get(
+                "client_x509_cert_url",
+                "",
+            ),
+        }
+
+        credentials = Credentials.from_service_account_info(
+            service_account_info,
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets.readonly",
+            ],
+        )
+
+        return build(
+            "sheets",
+            "v4",
+            credentials=credentials,
+            cache_discovery=False,
+        )
+
+    except Exception as e:
+        raise RuntimeError(
+            f"Falha ao autenticar a Service Account do Google Sheets: {e}"
+        ) from e
+
+
+def ler_aba_sheets(nome_aba):
+    """
+    Lê uma aba inteira via Google Sheets API.
+    O acesso é somente leitura nesta fase.
+    """
+    try:
+        service = obter_google_sheets_service()
+
+        result = (
+            service.spreadsheets()
+            .values()
+            .get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'{nome_aba}'!A:Z",
+            )
+            .execute()
+        )
+
+        values = result.get("values", [])
+
+        if not values:
+            return pd.DataFrame()
+
+        cabecalho = values[0]
+
+        # Garante quantidade de colunas suficiente em todas as linhas.
+        largura = max(
+            len(cabecalho),
+            max((len(linha) for linha in values[1:]), default=0),
+        )
+
+        cabecalho = list(cabecalho) + [
+            f"Coluna_{i}"
+            for i in range(len(cabecalho), largura)
+        ]
+
+        dados = []
+        for linha in values[1:]:
+            linha = list(linha) + [""] * (largura - len(linha))
+            dados.append(linha[:largura])
+
+        df = pd.DataFrame(dados, columns=cabecalho)
+        df.columns = df.columns.astype(str).str.strip()
+
+        return df
+
+    except Exception as e:
+        raise RuntimeError(
+            f"Não foi possível ler a aba '{nome_aba}' "
+            f"da planilha do Proposta Inteligente: {e}"
+        ) from e
+
 
 def carregar_dados_planilha():
     try:
-        # Lê a planilha utilizando ttl=0 para garantir dados atualizados sem travamento de cache
-        df = conn.read(ttl=0)
-        if df is not None and not df.empty:
-            df.columns = df.columns.astype(str).str.strip()
-        return df
+        return ler_aba_sheets("Form_Responses")
     except Exception as e:
+        st.error(f"Erro ao carregar Form_Responses: {e}")
         return None
+
+
+def carregar_usuarios():
+    try:
+        return ler_aba_sheets("Usuarios")
+    except Exception as e:
+        st.error(
+            f"Erro ao carregar a aba Usuarios "
+            f"(GID {USUARIOS_GID}): {e}"
+        )
+        return None
+
+
+def carregar_empresas():
+    try:
+        return ler_aba_sheets("Empresas")
+    except Exception as e:
+        st.error(
+            f"Erro ao carregar a aba Empresas "
+            f"(GID {EMPRESAS_GID}): {e}"
+        )
+        return None
+
+
+def localizar_coluna(df, candidatos):
+    if df is None or df.empty:
+        return None
+
+    mapa = {str(c).strip().lower(): c for c in df.columns}
+
+    for candidato in candidatos:
+        chave = str(candidato).strip().lower()
+        if chave in mapa:
+            return mapa[chave]
+
+    return None
+
+
+def valor_ativo(valor):
+    return str(valor).strip().lower() in {
+        "sim",
+        "true",
+        "1",
+        "ativo",
+        "yes",
+    }
+
 
 @st.cache_data(ttl=15)
 def checar_status_whatsapp_rapido():
@@ -129,37 +306,22 @@ def valor_ativo(valor):
 
 def carregar_usuarios():
     try:
-        df = conn.read(
-            spreadsheet=SPREADSHEET_URL,
-            worksheet=1751518313,
-            ttl=0,
-        )
-
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Usuarios", ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
-
         return df
-
-    except Exception as e:
-        st.error(f"Erro ao carregar a aba Usuarios (GID 1751518313): {e}")
+    except Exception:
         return None
 
 
 def carregar_empresas():
     try:
-        df = conn.read(
-            spreadsheet=SPREADSHEET_URL,
-            worksheet=751640019,
-            ttl=0,
-        )
-
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="Empresas", ttl=0)
         if df is not None and not df.empty:
             df.columns = df.columns.astype(str).str.strip()
-
         return df
-
     except Exception as e:
-        st.error(f"Erro ao carregar a aba Empresas (GID 751640019): {e}")
+        st.error(f"Erro ao carregar a aba Empresas: {e}")
         return None
 
 
