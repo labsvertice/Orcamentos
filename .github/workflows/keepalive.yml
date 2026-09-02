@@ -17,7 +17,7 @@ jobs:
 
       - name: Wake Streamlit app
         env:
-          STREAMLIT_URL: "https://vertice-orcamentos.streamlit.app/"
+          STREAMLIT_URL: "https://proposta-inteligente.streamlit.app/"
         run: |
           python - <<'PY'
           import os
