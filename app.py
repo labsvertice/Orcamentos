@@ -1025,6 +1025,11 @@ elif menu == "📋 Painel de Orçamentos":
                     .apply(moeda_br)
                 )
 
+                mensal_grafico["Mes_Label"] = (
+                    mensal_grafico["Mes"]
+                    .dt.strftime("%m/%Y")
+                )
+
                 spec_evolucao = {
                     "height": 320,
                     "width": "container",
@@ -1035,12 +1040,11 @@ elif menu == "📋 Painel de Orçamentos":
                     },
                     "encoding": {
                         "x": {
-                            "field": "Mes",
-                            "type": "temporal",
-                            "timeUnit": "yearmonth",
+                            "field": "Mes_Label",
+                            "type": "ordinal",
                             "axis": {
                                 "title": None,
-                                "format": "%b/%Y"
+                                "labelAngle": 0
                             }
                         },
                         "y": {
@@ -1048,16 +1052,14 @@ elif menu == "📋 Painel de Orçamentos":
                             "type": "quantitative",
                             "axis": {
                                 "title": None,
-                                "format": "R$,.0f"
+                                "format": ",.0f"
                             }
                         },
                         "tooltip": [
                             {
-                                "field": "Mes",
-                                "type": "temporal",
-                                "timeUnit": "yearmonth",
-                                "title": "Mês",
-                                "format": "%m/%Y"
+                                "field": "Mes_Label",
+                                "type": "nominal",
+                                "title": "Mês"
                             },
                             {
                                 "field": "Valor",
@@ -1078,9 +1080,8 @@ elif menu == "📋 Painel de Orçamentos":
                     },
                     "encoding": {
                         "x": {
-                            "field": "Mes",
-                            "type": "temporal",
-                            "timeUnit": "yearmonth"
+                            "field": "Mes_Label",
+                            "type": "ordinal"
                         },
                         "y": {
                             "field": "Valor",
@@ -1273,7 +1274,7 @@ elif menu == "📋 Painel de Orçamentos":
                                         "field": "Valor_Total",
                                         "type": "quantitative",
                                         "title": "Valor Total",
-                                        "format": "R$,.2f"
+                                        "format": ",.2f"
                                     }
                                 ]
                             }
