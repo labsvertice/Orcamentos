@@ -63,7 +63,7 @@ st.markdown(
     }
 
     [data-testid="stSidebar"] {
-        background: var(--brand-bg-2) !important;
+        background: #E5E5E5 !important;
         border-right: 1px solid var(--brand-line) !important;
     }
 
@@ -103,7 +103,7 @@ st.markdown(
     div[data-baseweb="input"] > div,
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div {
-        background: #D7D9D7 !important;
+        background: #D9D9D9 !important;
         border-color: #CDD6CF !important;
     }
 
@@ -139,6 +139,38 @@ st.markdown(
         border-radius: 14px !important;
         padding: 26px 24px !important;
         box-shadow: 0 10px 28px rgba(22, 39, 31, 0.06) !important;
+    }
+
+
+
+    /* Superfícies neutras do portal */
+    [data-testid="stAppViewContainer"] {
+        background: #F2F2F2 !important;
+    }
+
+    [data-testid="stForm"] {
+        background: #FAFAFA !important;
+        border: 1px solid #CECECE !important;
+    }
+
+    [data-baseweb="input"] > div,
+    [data-baseweb="textarea"] > div,
+    [data-baseweb="select"] > div {
+        background: #D9D9D9 !important;
+        border-color: #C5C5C5 !important;
+    }
+
+    [data-baseweb="input"] input,
+    [data-baseweb="textarea"] textarea {
+        color: #1B1B1B !important;
+    }
+
+    .brand-image-wrap {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto;
     }
 
     .login-title {
@@ -521,16 +553,19 @@ def limpar_sessao():
 
 
 def tela_login():
+    # Container central do login.
     st.markdown('<div class="login-shell">', unsafe_allow_html=True)
 
-    # ============================================================
-    # CABEÇALHO — largura ampla
-    # ============================================================
-    if os.path.exists("cabecalho.png"):
-        st.image(
-            "cabecalho.png",
-            width=1120
-        )
+    # --------------------------------------------------------
+    # CABEÇALHO — sempre centralizado no viewport
+    # --------------------------------------------------------
+    _, header_col, _ = st.columns([1, 2, 1])
+    with header_col:
+        if os.path.exists("cabecalho.png"):
+            st.image(
+                "cabecalho.png",
+                width=1120
+            )
 
     st.markdown(
         '<div class="login-title">🔐 Acesso ao Portal Comercial</div>',
@@ -544,10 +579,10 @@ def tela_login():
         unsafe_allow_html=True,
     )
 
-    # ============================================================
-    # LOGIN — mantém o formulário centralizado
-    # ============================================================
-    _, centro, _ = st.columns([1, 1.45, 1])
+    # --------------------------------------------------------
+    # FORMULÁRIO
+    # --------------------------------------------------------
+    _, centro, _ = st.columns([1, 1.35, 1])
 
     with centro:
         with st.form("form_login"):
@@ -567,18 +602,21 @@ def tela_login():
                 use_container_width=True,
             )
 
-    # ============================================================
-    # RODAPÉ — largura ampla, logo abaixo do botão
-    # ============================================================
+    # --------------------------------------------------------
+    # RODAPÉ — centralizado e próximo do formulário
+    # --------------------------------------------------------
     if os.path.exists("rodape.png"):
         st.markdown(
-            "<div style='height:24px;'></div>",
+            "<div style='height:22px;'></div>",
             unsafe_allow_html=True
         )
-        st.image(
-            "rodape.png",
-            width=1040
-        )
+
+        _, footer_col, _ = st.columns([1, 2, 1])
+        with footer_col:
+            st.image(
+                "rodape.png",
+                width=1040
+            )
 
     if entrar:
         if not login or not senha:
