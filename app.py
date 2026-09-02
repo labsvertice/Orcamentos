@@ -686,8 +686,8 @@ PERFIL_ACESSO_LOGADO = st.session_state["perfil_acesso"]
 # 2. SIDEBAR / NAV
 # =================================================================================
 with st.sidebar:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", width=130)
+    if os.path.exists("proposta_inteligente.png"):
+        st.image("proposta_inteligente.png", width=130)
     else:
         st.title("📊 Proposta Inteligente")
 
