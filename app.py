@@ -1012,8 +1012,102 @@ elif menu == "📋 Painel de Orçamentos":
                     .sort_index()
                 )
 
-                st.line_chart(
-                    mensal[["Orçamentos"]],
+                # Evolução mensal pelo valor total orçado.
+                # Mantemos o gráfico de linha e adicionamos rótulos de dados.
+                mensal_grafico = (
+                    mensal
+                    .reset_index()
+                    .rename(columns={"Mês": "Mes"})
+                )
+
+                mensal_grafico["Valor_Label"] = (
+                    mensal_grafico["Valor"]
+                    .apply(moeda_br)
+                )
+
+                spec_evolucao = {
+                    "height": 320,
+                    "width": "container",
+                    "mark": {
+                        "type": "line",
+                        "point": True,
+                        "tooltip": True
+                    },
+                    "encoding": {
+                        "x": {
+                            "field": "Mes",
+                            "type": "temporal",
+                            "timeUnit": "yearmonth",
+                            "axis": {
+                                "title": None,
+                                "format": "%b/%Y"
+                            }
+                        },
+                        "y": {
+                            "field": "Valor",
+                            "type": "quantitative",
+                            "axis": {
+                                "title": None,
+                                "format": "R$,.0f"
+                            }
+                        },
+                        "tooltip": [
+                            {
+                                "field": "Mes",
+                                "type": "temporal",
+                                "timeUnit": "yearmonth",
+                                "title": "Mês",
+                                "format": "%m/%Y"
+                            },
+                            {
+                                "field": "Valor",
+                                "type": "quantitative",
+                                "title": "Valor Total",
+                                "format": "R$,.2f"
+                            }
+                        ]
+                    }
+                }
+
+                labels_evolucao = {
+                    "mark": {
+                        "type": "text",
+                        "dy": -12,
+                        "fontSize": 12,
+                        "fontWeight": "bold"
+                    },
+                    "encoding": {
+                        "x": {
+                            "field": "Mes",
+                            "type": "temporal",
+                            "timeUnit": "yearmonth"
+                        },
+                        "y": {
+                            "field": "Valor",
+                            "type": "quantitative"
+                        },
+                        "text": {
+                            "field": "Valor_Label",
+                            "type": "nominal"
+                        }
+                    }
+                }
+
+                chart_evolucao = {
+                    "layer": [
+                        spec_evolucao,
+                        labels_evolucao
+                    ],
+                    "resolve": {
+                        "scale": {
+                            "y": "shared"
+                        }
+                    }
+                }
+
+                st.vega_lite_chart(
+                    mensal_grafico,
+                    chart_evolucao,
                     use_container_width=True
                 )
             else:
