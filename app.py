@@ -1041,17 +1041,187 @@ elif menu == "📋 Painel de Orçamentos":
 
                     col_chart1, col_chart2 = st.columns(2)
 
+                    # ----------------------------------------------------------
+                    # Gráficos com rótulos de dados
+                    # ----------------------------------------------------------
+                    df_vendedores_chart = (
+                        por_vendedor
+                        .reset_index()
+                        .rename(columns={"Vendedor_Exibicao": "Vendedor"})
+                    )
+
                     with col_chart1:
                         st.caption("Quantidade de orçamentos")
-                        st.bar_chart(
-                            por_vendedor["Orçamentos"],
+
+                        spec_qtd = {
+                            "height": 320,
+                            "width": "container",
+                            "mark": {
+                                "type": "bar",
+                                "tooltip": True
+                            },
+                            "encoding": {
+                                "x": {
+                                    "field": "Vendedor",
+                                    "type": "nominal",
+                                    "sort": "-y",
+                                    "axis": {
+                                        "title": None,
+                                        "labelAngle": 0
+                                    }
+                                },
+                                "y": {
+                                    "field": "Orçamentos",
+                                    "type": "quantitative",
+                                    "axis": {
+                                        "title": None,
+                                        "format": "d"
+                                    }
+                                },
+                                "tooltip": [
+                                    {
+                                        "field": "Vendedor",
+                                        "type": "nominal",
+                                        "title": "Vendedor"
+                                    },
+                                    {
+                                        "field": "Orçamentos",
+                                        "type": "quantitative",
+                                        "title": "Orçamentos",
+                                        "format": "d"
+                                    }
+                                ]
+                            }
+                        }
+
+                        chart_qtd = {
+                            "layer": [
+                                spec_qtd,
+                                {
+                                    "mark": {
+                                        "type": "text",
+                                        "dy": -10,
+                                        "fontSize": 14,
+                                        "fontWeight": "bold"
+                                    },
+                                    "encoding": {
+                                        "x": {
+                                            "field": "Vendedor",
+                                            "type": "nominal",
+                                            "sort": "-y"
+                                        },
+                                        "y": {
+                                            "field": "Orçamentos",
+                                            "type": "quantitative"
+                                        },
+                                        "text": {
+                                            "field": "Orçamentos",
+                                            "type": "quantitative",
+                                            "format": "d"
+                                        }
+                                    }
+                                }
+                            ],
+                            "resolve": {
+                                "scale": {
+                                    "y": "shared"
+                                }
+                            }
+                        }
+
+                        st.vega_lite_chart(
+                            df_vendedores_chart,
+                            chart_qtd,
                             use_container_width=True
                         )
 
                     with col_chart2:
                         st.caption("Valor total orçado")
-                        st.bar_chart(
-                            por_vendedor["Valor_Total"],
+
+                        # Rótulo pronto em formato brasileiro.
+                        df_vendedores_chart["Valor_Label"] = (
+                            df_vendedores_chart["Valor_Total"]
+                            .apply(moeda_br)
+                        )
+
+                        spec_valor = {
+                            "height": 320,
+                            "width": "container",
+                            "mark": {
+                                "type": "bar",
+                                "tooltip": True
+                            },
+                            "encoding": {
+                                "x": {
+                                    "field": "Vendedor",
+                                    "type": "nominal",
+                                    "sort": "-y",
+                                    "axis": {
+                                        "title": None,
+                                        "labelAngle": 0
+                                    }
+                                },
+                                "y": {
+                                    "field": "Valor_Total",
+                                    "type": "quantitative",
+                                    "axis": {
+                                        "title": None,
+                                        "format": "R$,.0f"
+                                    }
+                                },
+                                "tooltip": [
+                                    {
+                                        "field": "Vendedor",
+                                        "type": "nominal",
+                                        "title": "Vendedor"
+                                    },
+                                    {
+                                        "field": "Valor_Total",
+                                        "type": "quantitative",
+                                        "title": "Valor Total",
+                                        "format": "R$,.2f"
+                                    }
+                                ]
+                            }
+                        }
+
+                        chart_valor = {
+                            "layer": [
+                                spec_valor,
+                                {
+                                    "mark": {
+                                        "type": "text",
+                                        "dy": -10,
+                                        "fontSize": 13,
+                                        "fontWeight": "bold"
+                                    },
+                                    "encoding": {
+                                        "x": {
+                                            "field": "Vendedor",
+                                            "type": "nominal",
+                                            "sort": "-y"
+                                        },
+                                        "y": {
+                                            "field": "Valor_Total",
+                                            "type": "quantitative"
+                                        },
+                                        "text": {
+                                            "field": "Valor_Label",
+                                            "type": "nominal"
+                                        }
+                                    }
+                                }
+                            ],
+                            "resolve": {
+                                "scale": {
+                                    "y": "shared"
+                                }
+                            }
+                        }
+
+                        st.vega_lite_chart(
+                            df_vendedores_chart,
+                            chart_valor,
                             use_container_width=True
                         )
                 else:
@@ -1070,7 +1240,9 @@ elif menu == "📋 Painel de Orçamentos":
                 .dt.strftime("%d/%m/%Y %H:%M")
             )
 
+            df_exibir["Cliente"] = df_filtrado[col_nome]
             df_exibir["Vendedor"] = df_filtrado["Vendedor_Exibicao"]
+            df_exibir["WhatsApp"] = df_filtrado[col_whats]
             df_exibir["Resumo do Serviço"] = df_filtrado[col_resumo]
 
             df_exibir["Valor Total"] = (
@@ -1084,8 +1256,14 @@ elif menu == "📋 Painel de Orçamentos":
                 "Data do Envio": st.column_config.TextColumn(
                     "Data do Envio"
                 ),
+                "Cliente": st.column_config.TextColumn(
+                    "Cliente"
+                ),
                 "Vendedor": st.column_config.TextColumn(
                     "Vendedor"
+                ),
+                "WhatsApp": st.column_config.TextColumn(
+                    "WhatsApp"
                 ),
                 "Resumo do Serviço": st.column_config.TextColumn(
                     "Resumo do Serviço"
