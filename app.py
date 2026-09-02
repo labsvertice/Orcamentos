@@ -33,10 +33,10 @@ st.markdown(
     """
     <style>
     :root {
-        --brand-bg: #EEF1EC;
-        --brand-bg-2: #E5EAE4;
-        --brand-panel: #F7F8F5;
-        --brand-line: #CBD4CC;
+        --brand-bg: #F1F2F0;
+        --brand-bg-2: #E7E9E7;
+        --brand-panel: #FAFAF8;
+        --brand-line: #D0D3D0;
         --brand-text: #16271F;
         --brand-muted: #5E6D64;
         --brand-green: #2F5D4F;
@@ -83,11 +83,11 @@ st.markdown(
 
     div.stButton > button,
     div.stFormSubmitButton > button {
-        background: var(--brand-green) !important;
-        color: #FFFFFF !important;
+        background: #D3A51D !important;
+        color: #17231B !important;
         font-weight: 700 !important;
         border-radius: 9px !important;
-        border: 1px solid var(--brand-green) !important;
+        border: 1px solid #D3A51D !important;
         padding: 10px 24px !important;
         width: 100%;
         transition: all 0.2s ease !important;
@@ -95,15 +95,15 @@ st.markdown(
 
     div.stButton > button:hover,
     div.stFormSubmitButton > button:hover {
-        background: var(--brand-green-dark) !important;
-        border-color: var(--brand-green-dark) !important;
+        background: #B78D0D !important;
+        border-color: #B78D0D !important;
         box-shadow: 0 4px 12px rgba(35, 72, 61, 0.16) !important;
     }
 
     div[data-baseweb="input"] > div,
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div {
-        background: #E8EEE8 !important;
+        background: #DCE0DC !important;
         border-color: #CDD6CF !important;
     }
 
@@ -131,6 +131,14 @@ st.markdown(
         border-radius: 14px;
         padding: 28px;
         box-shadow: 0 10px 30px rgba(22, 39, 31, 0.06);
+    }
+
+    div[data-testid="stForm"] {
+        background: rgba(250, 250, 248, 0.94) !important;
+        border: 1px solid #D0D3D0 !important;
+        border-radius: 14px !important;
+        padding: 24px 22px !important;
+        box-shadow: 0 10px 28px rgba(22, 39, 31, 0.06) !important;
     }
 
     .login-title {
@@ -522,7 +530,7 @@ def tela_login():
         if os.path.exists("cabecalho.png"):
             st.image(
                 "cabecalho.png",
-                width=1000
+                width=1120
             )
 
         st.markdown(
@@ -536,8 +544,6 @@ def tela_login():
             '</div>',
             unsafe_allow_html=True,
         )
-
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
 
         with st.form("form_login"):
             login = st.text_input(
@@ -556,8 +562,6 @@ def tela_login():
                 use_container_width=True,
             )
 
-        st.markdown('</div>', unsafe_allow_html=True)
-
         # Rodapé imediatamente abaixo do botão.
         if os.path.exists("rodape.png"):
             st.markdown(
@@ -566,7 +570,7 @@ def tela_login():
             )
             st.image(
                 "rodape.png",
-                width=800
+                width=980
             )
 
         if entrar:
