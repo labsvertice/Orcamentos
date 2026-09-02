@@ -33,10 +33,10 @@ st.markdown(
     """
     <style>
     :root {
-        --brand-bg: #F1F2F0;
-        --brand-bg-2: #E7E9E7;
-        --brand-panel: #FAFAF8;
-        --brand-line: #D0D3D0;
+        --brand-bg: #F3F3F1;
+        --brand-bg-2: #E8E8E6;
+        --brand-panel: #FAFAF9;
+        --brand-line: #D3D3D0;
         --brand-text: #16271F;
         --brand-muted: #5E6D64;
         --brand-green: #2F5D4F;
@@ -95,7 +95,7 @@ st.markdown(
 
     div.stButton > button:hover,
     div.stFormSubmitButton > button:hover {
-        background: #B78D0D !important;
+        background: #B58C0B !important;
         border-color: #B78D0D !important;
         box-shadow: 0 4px 12px rgba(35, 72, 61, 0.16) !important;
     }
@@ -103,7 +103,7 @@ st.markdown(
     div[data-baseweb="input"] > div,
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div {
-        background: #DCE0DC !important;
+        background: #D7D9D7 !important;
         border-color: #CDD6CF !important;
     }
 
@@ -120,7 +120,7 @@ st.markdown(
     }
 
     .login-shell {
-        max-width: 760px;
+        max-width: 1180px;
         margin: 0 auto;
         padding-top: 2.5rem;
     }
@@ -137,7 +137,7 @@ st.markdown(
         background: rgba(250, 250, 248, 0.94) !important;
         border: 1px solid #D0D3D0 !important;
         border-radius: 14px !important;
-        padding: 24px 22px !important;
+        padding: 26px 24px !important;
         box-shadow: 0 10px 28px rgba(22, 39, 31, 0.06) !important;
     }
 
@@ -523,32 +523,37 @@ def limpar_sessao():
 def tela_login():
     st.markdown('<div class="login-shell">', unsafe_allow_html=True)
 
-    _, centro, _ = st.columns([1, 1.1, 1])
+    # ============================================================
+    # CABEÇALHO — largura ampla
+    # ============================================================
+    if os.path.exists("cabecalho.png"):
+        st.image(
+            "cabecalho.png",
+            width=1120
+        )
+
+    st.markdown(
+        '<div class="login-title">🔐 Acesso ao Portal Comercial</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div class="login-subtitle">'
+        'Entre com seu login e senha para acessar o Proposta Inteligente.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ============================================================
+    # LOGIN — mantém o formulário centralizado
+    # ============================================================
+    _, centro, _ = st.columns([1, 1.45, 1])
 
     with centro:
-        # Cabeçalho institucional do Portal Comercial.
-        if os.path.exists("cabecalho.png"):
-            st.image(
-                "cabecalho.png",
-                width=1120
-            )
-
-        st.markdown(
-            '<div class="login-title">🔐 Acesso ao Portal Comercial</div>',
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            '<div class="login-subtitle">'
-            'Entre com seu login e senha para acessar o Proposta Inteligente.'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-
         with st.form("form_login"):
             login = st.text_input(
                 "Login",
-                placeholder="Ex: joao_empresaa",
+                placeholder="Ex: joao_empresa",
             )
 
             senha = st.text_input(
@@ -562,42 +567,44 @@ def tela_login():
                 use_container_width=True,
             )
 
-        # Rodapé imediatamente abaixo do botão.
-        if os.path.exists("rodape.png"):
-            st.markdown(
-                "<div style='height:18px;'></div>",
-                unsafe_allow_html=True
-            )
-            st.image(
-                "rodape.png",
-                width=980
-            )
+    # ============================================================
+    # RODAPÉ — largura ampla, logo abaixo do botão
+    # ============================================================
+    if os.path.exists("rodape.png"):
+        st.markdown(
+            "<div style='height:24px;'></div>",
+            unsafe_allow_html=True
+        )
+        st.image(
+            "rodape.png",
+            width=1040
+        )
 
-        if entrar:
-            if not login or not senha:
-                st.error("Informe o login e a senha.")
+    if entrar:
+        if not login or not senha:
+            st.error("Informe o login e a senha.")
+        else:
+            usuario, erro = autenticar_usuario(login, senha)
+
+            if erro:
+                st.error(erro)
             else:
-                usuario, erro = autenticar_usuario(login, senha)
+                empresa, erro_empresa = obter_empresa(usuario["empresa_ref"])
 
-                if erro:
-                    st.error(erro)
+                if erro_empresa:
+                    st.error(erro_empresa)
                 else:
-                    empresa, erro_empresa = obter_empresa(usuario["empresa_ref"])
-
-                    if erro_empresa:
-                        st.error(erro_empresa)
-                    else:
-                        st.session_state["autenticado"] = True
-                        st.session_state["usuario_id"] = usuario["usuario_id"]
-                        st.session_state["usuario_nome"] = usuario["nome"]
-                        st.session_state["usuario_login"] = usuario["login"]
-                        st.session_state["empresa_id"] = empresa["empresa_id"]
-                        st.session_state["empresa_nome"] = empresa["nome_empresa"]
-                        st.session_state["perfil_acesso"] = usuario["perfil_acesso"]
-                        st.session_state["template_id"] = empresa["template_id"]
-                        st.session_state["pasta_destino_id"] = empresa["pasta_destino_id"]
-                        st.session_state["cota_empresa"] = empresa["cota"]
-                        st.rerun()
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario_id"] = usuario["usuario_id"]
+                    st.session_state["usuario_nome"] = usuario["nome"]
+                    st.session_state["usuario_login"] = usuario["login"]
+                    st.session_state["empresa_id"] = empresa["empresa_id"]
+                    st.session_state["empresa_nome"] = empresa["nome_empresa"]
+                    st.session_state["perfil_acesso"] = usuario["perfil_acesso"]
+                    st.session_state["template_id"] = empresa["template_id"]
+                    st.session_state["pasta_destino_id"] = empresa["pasta_destino_id"]
+                    st.session_state["cota_empresa"] = empresa["cota"]
+                    st.rerun()
 
 
 if not st.session_state.get("autenticado", False):
