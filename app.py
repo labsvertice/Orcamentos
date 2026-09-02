@@ -170,7 +170,7 @@ def ler_aba_sheets(nome_aba):
             .values()
             .get(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"{nome_aba}!A:Z",
+                range=f"{nome_aba}!A1:Z10000",
             )
             .execute()
         )
@@ -562,7 +562,10 @@ if menu == "➕ Novo Orçamento":
                                 "whatsapp": whatsapp_cliente,
                                 "resumo": resumo_servicos,
                                 "itens": itens_valores,
-                                "instance": INSTANCE_NAME
+                                "instance": INSTANCE_NAME,
+                                "empresa_id": EMPRESA_ID_LOGADA,
+                                "vendedor": NOME_USUARIO_LOGADO,
+                                "usuario_id": st.session_state.get("usuario_id", "")
                             }
                             response = requests.post(WEBAPP_URL, json=payload, timeout=30)
                             if response.status_code == 200 and response.json().get("status") == "success":
@@ -719,81 +722,60 @@ elif menu == "📋 Painel de Orçamentos":
         else:
 
             # ------------------------------------------------------------------
-            # Valor total — cálculo temporário a partir dos itens.
-            # Na Fase 4 passaremos a usar o valor consolidado pela IA.
+            # Valor total oficial
             # ------------------------------------------------------------------
-            def parse_valor_brasileiro(valor_texto):
-                texto = str(valor_texto or "").strip()
-
-                if not texto:
-                    return 0.0
-
-                # Remove símbolos/espaços, mantendo números, ponto e vírgula.
-                texto = re.sub(r"[^\d,.\-]", "", texto)
-
-                if not texto:
-                    return 0.0
-
-                if "," in texto and "." in texto:
-                    # Ex.: 1.500,00
-                    if texto.rfind(",") > texto.rfind("."):
-                        texto = texto.replace(".", "").replace(",", ".")
-                    else:
-                        # Ex.: 1,500.00
-                        texto = texto.replace(",", "")
-                elif "," in texto:
-                    # Ex.: 1500,00
-                    texto = texto.replace(",", ".")
-                else:
-                    # Ex.: 1500.00 ou 1500
-                    pass
-
-                try:
-                    return float(texto)
-                except (ValueError, TypeError):
-                    return 0.0
-
-            def calcular_total_orcamento(texto):
-                if pd.isna(texto):
-                    return 0.0
-
-                texto = str(texto)
-                total = 0.0
-
-                for linha in texto.splitlines():
-                    linha = linha.strip()
-
-                    if not linha:
-                        continue
-
-                    # Prioridade 1: valores com R$.
-                    valores_monetarios = re.findall(
-                        r"R\$\s*[-]?\s*[\d\.\,]+",
-                        linha,
-                        flags=re.IGNORECASE
-                    )
-
-                    if valores_monetarios:
-                        total += parse_valor_brasileiro(
-                            valores_monetarios[-1]
-                        )
-                        continue
-
-                    # Prioridade 2: último número da linha.
-                    candidatos = re.findall(
-                        r"[-]?\d+(?:[.,]\d+)?",
-                        linha
-                    )
-
-                    if candidatos:
-                        total += parse_valor_brasileiro(candidatos[-1])
-
-                return total
-
-            df_base["Valor_Total"] = (
-                df_base[col_itens]
-                .apply(calcular_total_orcamento)
+            # O Apps Script grava na coluna K o valor retornado pelo Gemini.
+            col_valor = next(
+                (
+                    c for c in df_base.columns
+                    if str(c).strip().lower() in {
+                        "valor_total",
+                        "valor total",
+                        "valor_total_calculado",
+                        "valor total calculado",
+                    }
+                    or "valor_total" in str(c).strip().lower()
+                ),
+                None
             )
+
+            if col_valor is None:
+                st.warning(
+                    "A coluna Valor_Total (K) ainda não foi encontrada em Form_Responses. "
+                    "Depois de atualizar o Apps Script e criar uma nova proposta, ela será utilizada pelo painel."
+                )
+
+                df_base["Valor_Total"] = 0.0
+
+            else:
+                def parse_valor_brasileiro(valor):
+                    texto = str(valor or "").strip()
+
+                    if not texto:
+                        return 0.0
+
+                    texto = re.sub(r"[^0-9,.-]", "", texto)
+
+                    if not texto:
+                        return 0.0
+
+                    if "," in texto and "." in texto:
+                        if texto.rfind(",") > texto.rfind("."):
+                            texto = texto.replace(".", "").replace(",", ".")
+                        else:
+                            texto = texto.replace(",", "")
+                    elif "," in texto:
+                        texto = texto.replace(",", ".")
+
+                    try:
+                        return float(texto)
+                    except (ValueError, TypeError):
+                        return 0.0
+
+                df_base["Valor_Total"] = (
+                    df_base[col_valor]
+                    .apply(parse_valor_brasileiro)
+                )
 
             # ------------------------------------------------------------------
             # Filtros
