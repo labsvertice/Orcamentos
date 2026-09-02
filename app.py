@@ -6,6 +6,7 @@ import requests
 import streamlit as st
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from streamlit_gsheets import GSheetsConnection
 
 # URL DO SEU APP WEB DO GOOGLE APPS SCRIPT (ORÇAMENTOS)
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
@@ -94,6 +95,9 @@ SPREADSHEET_ID = "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU"
 USUARIOS_GID = 1751518313
 EMPRESAS_GID = 751640019
 
+# Conexão GSheets — padrão comprovado no Nutribook.
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 
 def obter_google_sheets_service():
     """Cria o cliente autenticado do Google Sheets a partir do Secrets."""
@@ -157,6 +161,13 @@ def obter_google_sheets_service():
         ) from e
 
 
+def normalizar_colunas(df):
+    if df is not None and not df.empty:
+        df = df.copy()
+        df.columns = df.columns.astype(str).str.strip()
+    return df
+
+
 def ler_aba_sheets(nome_aba):
     """
     Lê uma aba inteira via Google Sheets API.
@@ -170,7 +181,7 @@ def ler_aba_sheets(nome_aba):
             .values()
             .get(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"{nome_aba}!A1:Z10000",
+                range=f"{nome_aba}!A:Z",
             )
             .execute()
         )
@@ -211,8 +222,10 @@ def ler_aba_sheets(nome_aba):
 
 
 def carregar_dados_planilha():
+    """Lê a Form_Responses usando a mesma conexão que já funciona no Nutribook."""
     try:
-        return ler_aba_sheets("Form_Responses")
+        df = conn.read(ttl=0)
+        return normalizar_colunas(df)
     except Exception as e:
         st.error(f"Erro ao carregar Form_Responses: {e}")
         return None
@@ -722,9 +735,7 @@ elif menu == "📋 Painel de Orçamentos":
         else:
 
             # ------------------------------------------------------------------
-            # Valor total oficial
-            # ------------------------------------------------------------------
-            # O Apps Script grava na coluna K o valor retornado pelo Gemini.
+            # Valor total oficial — coluna K preenchida pelo Gemini.
             col_valor = next(
                 (
                     c for c in df_base.columns
@@ -741,24 +752,17 @@ elif menu == "📋 Painel de Orçamentos":
 
             if col_valor is None:
                 st.warning(
-                    "A coluna Valor_Total (K) ainda não foi encontrada em Form_Responses. "
-                    "Depois de atualizar o Apps Script e criar uma nova proposta, ela será utilizada pelo painel."
+                    "A coluna Valor_Total (K) ainda não foi encontrada em Form_Responses."
                 )
-
                 df_base["Valor_Total"] = 0.0
-
             else:
                 def parse_valor_brasileiro(valor):
                     texto = str(valor or "").strip()
-
                     if not texto:
                         return 0.0
-
                     texto = re.sub(r"[^0-9,.-]", "", texto)
-
                     if not texto:
                         return 0.0
-
                     if "," in texto and "." in texto:
                         if texto.rfind(",") > texto.rfind("."):
                             texto = texto.replace(".", "").replace(",", ".")
@@ -766,15 +770,13 @@ elif menu == "📋 Painel de Orçamentos":
                             texto = texto.replace(",", "")
                     elif "," in texto:
                         texto = texto.replace(",", ".")
-
                     try:
                         return float(texto)
                     except (ValueError, TypeError):
                         return 0.0
 
-                df_base["Valor_Total"] = (
-                    df_base[col_valor]
-                    .apply(parse_valor_brasileiro)
+                df_base["Valor_Total"] = df_base[col_valor].apply(
+                    parse_valor_brasileiro
                 )
 
             # ------------------------------------------------------------------
