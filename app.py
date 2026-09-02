@@ -1070,9 +1070,7 @@ elif menu == "📋 Painel de Orçamentos":
                 .dt.strftime("%d/%m/%Y %H:%M")
             )
 
-            df_exibir["Cliente"] = df_filtrado[col_nome]
             df_exibir["Vendedor"] = df_filtrado["Vendedor_Exibicao"]
-            df_exibir["WhatsApp"] = df_filtrado[col_whats]
             df_exibir["Resumo do Serviço"] = df_filtrado[col_resumo]
 
             df_exibir["Valor Total"] = (
@@ -1086,14 +1084,8 @@ elif menu == "📋 Painel de Orçamentos":
                 "Data do Envio": st.column_config.TextColumn(
                     "Data do Envio"
                 ),
-                "Cliente": st.column_config.TextColumn(
-                    "Cliente"
-                ),
                 "Vendedor": st.column_config.TextColumn(
                     "Vendedor"
-                ),
-                "WhatsApp": st.column_config.TextColumn(
-                    "WhatsApp"
                 ),
                 "Resumo do Serviço": st.column_config.TextColumn(
                     "Resumo do Serviço"
