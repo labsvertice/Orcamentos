@@ -103,7 +103,7 @@ st.markdown(
     div[data-baseweb="input"] > div,
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div {
-        background: #D9D9D9 !important;
+        background: #C9C9C9 !important;
         border-color: #CDD6CF !important;
     }
 
@@ -163,7 +163,7 @@ st.markdown(
     div[data-baseweb="textarea"] > div,
     div[data-baseweb="select"] > div,
     [data-baseweb="base-input"] > div {
-        background: #DCDCDC !important;
+        background: #C9C9C9 !important;
         border: 1px solid #C6C6C6 !important;
         box-shadow: none !important;
     }
