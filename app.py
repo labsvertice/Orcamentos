@@ -33,10 +33,10 @@ st.markdown(
     """
     <style>
     :root {
-        --brand-bg: #F3F3F1;
-        --brand-bg-2: #E8E8E6;
-        --brand-panel: #FAFAF9;
-        --brand-line: #D3D3D0;
+        --brand-bg: #F4F4F4;
+        --brand-bg-2: #EAEAEA;
+        --brand-panel: #FAFAFA;
+        --brand-line: #D1D1D1;
         --brand-text: #16271F;
         --brand-muted: #5E6D64;
         --brand-green: #2F5D4F;
@@ -143,26 +143,51 @@ st.markdown(
 
 
 
-    /* Superfícies neutras do portal */
-    [data-testid="stAppViewContainer"] {
-        background: #F2F2F2 !important;
+    /* ============================================================
+       PALETA NEUTRA DO PORTAL
+       ============================================================ */
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stApp"],
+    .main {
+        background: #F4F4F4 !important;
     }
 
     [data-testid="stForm"] {
         background: #FAFAFA !important;
-        border: 1px solid #CECECE !important;
+        border: 1px solid #D1D1D1 !important;
     }
 
-    [data-baseweb="input"] > div,
-    [data-baseweb="textarea"] > div,
-    [data-baseweb="select"] > div {
-        background: #D9D9D9 !important;
-        border-color: #C5C5C5 !important;
+    /* Campos de preenchimento: cinza médio, sem tom verde. */
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="textarea"] > div,
+    div[data-baseweb="select"] > div,
+    [data-baseweb="base-input"] > div {
+        background: #DCDCDC !important;
+        border: 1px solid #C6C6C6 !important;
+        box-shadow: none !important;
     }
 
-    [data-baseweb="input"] input,
-    [data-baseweb="textarea"] textarea {
-        color: #1B1B1B !important;
+    div[data-baseweb="input"] input,
+    div[data-baseweb="textarea"] textarea,
+    div[data-baseweb="select"] input {
+        background: transparent !important;
+        color: #202020 !important;
+    }
+
+    div[data-baseweb="input"] input::placeholder,
+    div[data-baseweb="textarea"] textarea::placeholder {
+        color: #667078 !important;
+        opacity: 1 !important;
+    }
+
+    /* Remove qualquer aparência verde de containers de entrada. */
+    [data-baseweb] {
+        --accent-color: #D3A51D;
+    }
+
+    [data-testid="stSidebar"] {
+        background: #EAEAEA !important;
     }
 
     .brand-image-wrap {
@@ -568,7 +593,7 @@ def tela_login():
             )
 
     st.markdown(
-        '<div class="login-title">🔐 Acesso ao Portal Comercial</div>',
+        '<div class="login-title">🔐 Acesso ao Portal de Propostas</div>',
         unsafe_allow_html=True,
     )
 
