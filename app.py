@@ -32,46 +32,133 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .stApp { background-color: #E2E8E2 !important; }
-    
-    header[data-testid="stHeader"], [data-testid="stHeader"], header {
+    :root {
+        --brand-bg: #EEF1EC;
+        --brand-bg-2: #E5EAE4;
+        --brand-panel: #F7F8F5;
+        --brand-line: #CBD4CC;
+        --brand-text: #16271F;
+        --brand-muted: #5E6D64;
+        --brand-green: #2F5D4F;
+        --brand-green-dark: #23483D;
+        --brand-gold: #B9954A;
+        --brand-gold-light: #E7D7AF;
+    }
+
+    .stApp {
+        background-color: var(--brand-bg) !important;
+    }
+
+    header[data-testid="stHeader"],
+    [data-testid="stHeader"],
+    header {
         display: none !important;
         height: 0px !important;
     }
-    
-    .main .block-container, [data-testid="stMainBlockContainer"] {
-        padding-top: 2rem !important;
-        margin-top: -1.5rem !important;
-        padding-bottom: 2rem !important;
+
+    .main .block-container,
+    [data-testid="stMainBlockContainer"] {
+        padding-top: 2.2rem !important;
+        padding-bottom: 2.5rem !important;
     }
-    
+
+    [data-testid="stSidebar"] {
+        background: var(--brand-bg-2) !important;
+        border-right: 1px solid var(--brand-line) !important;
+    }
+
     [data-testid="stSidebarContent"] {
-        padding-top: 2rem !important;
+        padding-top: 1.6rem !important;
     }
 
-    div.stButton > button, div.stFormSubmitButton > button {
-        background-color: #2A5C36 !important;
+    h1, h2, h3, h4 {
+        color: var(--brand-text) !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em;
+    }
+
+    p, label, .stCaption, [data-testid="stMarkdownContainer"] {
+        color: var(--brand-text);
+    }
+
+    div.stButton > button,
+    div.stFormSubmitButton > button {
+        background: var(--brand-green) !important;
         color: #FFFFFF !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        border: none !important;
+        font-weight: 700 !important;
+        border-radius: 9px !important;
+        border: 1px solid var(--brand-green) !important;
         padding: 10px 24px !important;
-        transition: all 0.3s ease !important;
         width: 100%;
-    }
-    
-    div.stButton > button:hover, div.stFormSubmitButton > button:hover {
-        background-color: #1E4327 !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(42, 92, 54, 0.25) !important;
+        transition: all 0.2s ease !important;
     }
 
-    h1, h2, h3 { color: #112214 !important; font-weight: 700 !important; }
-    [data-testid="stSidebar"] { background-color: #D3DDD3 !important; border-right: 1px solid #C1CDC1; }
+    div.stButton > button:hover,
+    div.stFormSubmitButton > button:hover {
+        background: var(--brand-green-dark) !important;
+        border-color: var(--brand-green-dark) !important;
+        box-shadow: 0 4px 12px rgba(35, 72, 61, 0.16) !important;
+    }
+
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="textarea"] > div,
+    div[data-baseweb="select"] > div {
+        background: #E8EEE8 !important;
+        border-color: #CDD6CF !important;
+    }
+
+    div[data-testid="stMetricValue"] {
+        color: var(--brand-text) !important;
+    }
+
+    div[data-testid="stMetricLabel"] {
+        color: var(--brand-muted) !important;
+    }
+
+    hr {
+        border-color: var(--brand-line) !important;
+    }
+
+    .login-shell {
+        max-width: 760px;
+        margin: 0 auto;
+        padding-top: 2.5rem;
+    }
+
+    .login-card {
+        background: rgba(247, 248, 245, 0.88);
+        border: 1px solid var(--brand-line);
+        border-radius: 14px;
+        padding: 28px;
+        box-shadow: 0 10px 30px rgba(22, 39, 31, 0.06);
+    }
+
+    .login-title {
+        text-align: center;
+        color: var(--brand-text);
+        font-size: 32px;
+        font-weight: 750;
+        margin: 20px 0 8px 0;
+    }
+
+    .login-subtitle {
+        text-align: center;
+        color: var(--brand-muted);
+        font-size: 16px;
+        margin-bottom: 24px;
+    }
+
+    .section-note {
+        color: var(--brand-muted);
+        font-size: 15px;
+        margin-top: -8px;
+        margin-bottom: 18px;
+    }
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
+
 
 # =============================================================================
 # GOOGLE SHEETS — CONEXÃO DIRETA VIA SERVICE ACCOUNT
@@ -426,25 +513,31 @@ def limpar_sessao():
 
 
 def tela_login():
-    st.markdown("<div style='height: 70px;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="login-shell">', unsafe_allow_html=True)
 
     _, centro, _ = st.columns([1, 1.1, 1])
 
     with centro:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", width=160)
+        # Cabeçalho institucional do Portal Comercial.
+        if os.path.exists("cabecalho.png"):
+            st.image(
+                "cabecalho.png",
+                width=1000
+            )
 
         st.markdown(
-            "<div style='text-align:center; color:#112214; font-size:30px; "
-            "font-weight:700; margin:28px 0 8px 0;'>🔐 Acesso ao Portal Comercial</div>",
+            '<div class="login-title">🔐 Acesso ao Portal Comercial</div>',
             unsafe_allow_html=True,
         )
 
         st.markdown(
-            "<div style='text-align:center; color:#334033; font-size:16px; "
-            "margin-bottom:22px;'>Entre com seu login e senha para acessar o Proposta Inteligente.</div>",
+            '<div class="login-subtitle">'
+            'Entre com seu login e senha para acessar o Proposta Inteligente.'
+            '</div>',
             unsafe_allow_html=True,
         )
+
+        st.markdown('<div class="login-card">', unsafe_allow_html=True)
 
         with st.form("form_login"):
             login = st.text_input(
@@ -461,6 +554,19 @@ def tela_login():
             entrar = st.form_submit_button(
                 "ENTRAR",
                 use_container_width=True,
+            )
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Rodapé imediatamente abaixo do botão.
+        if os.path.exists("rodape.png"):
+            st.markdown(
+                "<div style='height:18px;'></div>",
+                unsafe_allow_html=True
+            )
+            st.image(
+                "rodape.png",
+                width=800
             )
 
         if entrar:
@@ -507,7 +613,7 @@ PERFIL_ACESSO_LOGADO = st.session_state["perfil_acesso"]
 # =================================================================================
 with st.sidebar:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=160)
+        st.image("logo.png", width=130)
     else:
         st.title("📊 Proposta Inteligente")
 
@@ -987,7 +1093,7 @@ elif menu == "📋 Painel de Orçamentos":
             st.markdown("---")
 
             # ------------------------------------------------------------------
-            # GRÁFICO 1 — evolução mensal
+            # GRÁFICO 1 — evolução mensal por valor total
             # ------------------------------------------------------------------
             st.subheader("📈 Evolução dos Orçamentos")
 
@@ -996,7 +1102,7 @@ elif menu == "📋 Painel de Orçamentos":
             ).copy()
 
             if not df_grafico.empty:
-                df_grafico["Mês"] = (
+                df_grafico["Mes"] = (
                     df_grafico["Data_Parsed"]
                     .dt.to_period("M")
                     .dt.to_timestamp()
@@ -1004,113 +1110,97 @@ elif menu == "📋 Painel de Orçamentos":
 
                 mensal = (
                     df_grafico
-                    .groupby("Mês")
+                    .groupby("Mes", as_index=False)
                     .agg(
-                        Orçamentos=("Valor_Total", "size"),
-                        Valor=("Valor_Total", "sum")
+                        Valor_Total=("Valor_Total", "sum")
                     )
-                    .sort_index()
+                    .sort_values("Mes")
                 )
 
-                # Evolução mensal pelo valor total orçado.
-                # Mantemos o gráfico de linha e adicionamos rótulos de dados.
-                mensal_grafico = (
-                    mensal
-                    .reset_index()
-                    .rename(columns={"Mês": "Mes"})
-                )
+                mensal["Mes_Label"] = mensal["Mes"].dt.strftime("%m/%Y")
+                mensal["Valor_Label"] = mensal["Valor_Total"].apply(moeda_br)
 
-                mensal_grafico["Valor_Label"] = (
-                    mensal_grafico["Valor"]
-                    .apply(moeda_br)
-                )
+                ordem_meses = mensal["Mes_Label"].tolist()
 
-                mensal_grafico["Mes_Label"] = (
-                    mensal_grafico["Mes"]
-                    .dt.strftime("%m/%Y")
-                )
-
-                spec_evolucao = {
-                    "height": 320,
+                chart_evolucao_spec = {
+                    "height": 300,
                     "width": "container",
-                    "mark": {
-                        "type": "line",
-                        "point": True,
-                        "tooltip": True
-                    },
-                    "encoding": {
-                        "x": {
-                            "field": "Mes_Label",
-                            "type": "ordinal",
-                            "axis": {
-                                "title": None,
-                                "labelAngle": 0
-                            }
-                        },
-                        "y": {
-                            "field": "Valor",
-                            "type": "quantitative",
-                            "axis": {
-                                "title": None,
-                                "format": ",.0f"
-                            }
-                        },
-                        "tooltip": [
-                            {
-                                "field": "Mes_Label",
-                                "type": "nominal",
-                                "title": "Mês"
-                            },
-                            {
-                                "field": "Valor",
-                                "type": "quantitative",
-                                "title": "Valor Total",
-                                "format": "R$,.2f"
-                            }
-                        ]
-                    }
-                }
-
-                labels_evolucao = {
-                    "mark": {
-                        "type": "text",
-                        "dy": -12,
-                        "fontSize": 12,
-                        "fontWeight": "bold"
-                    },
-                    "encoding": {
-                        "x": {
-                            "field": "Mes_Label",
-                            "type": "ordinal"
-                        },
-                        "y": {
-                            "field": "Valor",
-                            "type": "quantitative"
-                        },
-                        "text": {
-                            "field": "Valor_Label",
-                            "type": "nominal"
-                        }
-                    }
-                }
-
-                chart_evolucao = {
                     "layer": [
-                        spec_evolucao,
-                        labels_evolucao
-                    ],
-                    "resolve": {
-                        "scale": {
-                            "y": "shared"
+                        {
+                            "mark": {
+                                "type": "line",
+                                "point": {
+                                    "filled": True,
+                                    "size": 80
+                                },
+                                "strokeWidth": 3,
+                                "color": "#2F5D4F"
+                            },
+                            "encoding": {
+                                "x": {
+                                    "field": "Mes_Label",
+                                    "type": "ordinal",
+                                    "sort": ordem_meses,
+                                    "axis": {
+                                        "title": None,
+                                        "labelAngle": 0
+                                    }
+                                },
+                                "y": {
+                                    "field": "Valor_Total",
+                                    "type": "quantitative",
+                                    "axis": {
+                                        "title": None,
+                                        "format": ",.0f"
+                                    }
+                                },
+                                "tooltip": [
+                                    {
+                                        "field": "Mes_Label",
+                                        "type": "nominal",
+                                        "title": "Mês"
+                                    },
+                                    {
+                                        "field": "Valor_Label",
+                                        "type": "nominal",
+                                        "title": "Valor Total"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "mark": {
+                                "type": "text",
+                                "dy": -14,
+                                "fontSize": 13,
+                                "fontWeight": "bold",
+                                "color": "#16271F"
+                            },
+                            "encoding": {
+                                "x": {
+                                    "field": "Mes_Label",
+                                    "type": "ordinal",
+                                    "sort": ordem_meses
+                                },
+                                "y": {
+                                    "field": "Valor_Total",
+                                    "type": "quantitative"
+                                },
+                                "text": {
+                                    "field": "Valor_Label",
+                                    "type": "nominal"
+                                }
+                            }
                         }
-                    }
+                    ]
                 }
 
                 st.vega_lite_chart(
-                    mensal_grafico,
-                    chart_evolucao,
-                    use_container_width=True
+                    mensal,
+                    chart_evolucao_spec,
+                    use_container_width=True,
                 )
+
             else:
                 st.info("Sem dados para o gráfico no período selecionado.")
 
@@ -1123,7 +1213,7 @@ elif menu == "📋 Painel de Orçamentos":
                 if not df_filtrado.empty:
                     por_vendedor = (
                         df_filtrado
-                        .groupby("Vendedor_Exibicao")
+                        .groupby("Vendedor_Exibicao", as_index=False)
                         .agg(
                             Orçamentos=("Valor_Total", "size"),
                             Valor_Total=("Valor_Total", "sum")
@@ -1134,76 +1224,83 @@ elif menu == "📋 Painel de Orçamentos":
                         )
                     )
 
-                    col_chart1, col_chart2 = st.columns(2)
-
-                    # ----------------------------------------------------------
-                    # Gráficos com rótulos de dados
-                    # ----------------------------------------------------------
-                    df_vendedores_chart = (
-                        por_vendedor
-                        .reset_index()
-                        .rename(columns={"Vendedor_Exibicao": "Vendedor"})
+                    por_vendedor = por_vendedor.rename(
+                        columns={
+                            "Vendedor_Exibicao": "Vendedor"
+                        }
                     )
+
+                    por_vendedor["Valor_Label"] = (
+                        por_vendedor["Valor_Total"]
+                        .apply(moeda_br)
+                    )
+
+                    ordem_vendedores = (
+                        por_vendedor["Vendedor"].tolist()
+                    )
+
+                    col_chart1, col_chart2 = st.columns(2)
 
                     with col_chart1:
                         st.caption("Quantidade de orçamentos")
 
-                        spec_qtd = {
-                            "height": 320,
+                        chart_qtd_spec = {
+                            "height": 300,
                             "width": "container",
-                            "mark": {
-                                "type": "bar",
-                                "tooltip": True
-                            },
-                            "encoding": {
-                                "x": {
-                                    "field": "Vendedor",
-                                    "type": "nominal",
-                                    "sort": "-y",
-                                    "axis": {
-                                        "title": None,
-                                        "labelAngle": 0
-                                    }
-                                },
-                                "y": {
-                                    "field": "Orçamentos",
-                                    "type": "quantitative",
-                                    "axis": {
-                                        "title": None,
-                                        "format": "d"
-                                    }
-                                },
-                                "tooltip": [
-                                    {
-                                        "field": "Vendedor",
-                                        "type": "nominal",
-                                        "title": "Vendedor"
-                                    },
-                                    {
-                                        "field": "Orçamentos",
-                                        "type": "quantitative",
-                                        "title": "Orçamentos",
-                                        "format": "d"
-                                    }
-                                ]
-                            }
-                        }
-
-                        chart_qtd = {
                             "layer": [
-                                spec_qtd,
                                 {
                                     "mark": {
-                                        "type": "text",
-                                        "dy": -10,
-                                        "fontSize": 14,
-                                        "fontWeight": "bold"
+                                        "type": "bar",
+                                        "color": "#2F5D4F",
+                                        "cornerRadiusTopLeft": 6,
+                                        "cornerRadiusTopRight": 6
                                     },
                                     "encoding": {
                                         "x": {
                                             "field": "Vendedor",
                                             "type": "nominal",
-                                            "sort": "-y"
+                                            "sort": ordem_vendedores,
+                                            "axis": {
+                                                "title": None,
+                                                "labelAngle": 0
+                                            }
+                                        },
+                                        "y": {
+                                            "field": "Orçamentos",
+                                            "type": "quantitative",
+                                            "axis": {
+                                                "title": None,
+                                                "format": "d"
+                                            }
+                                        },
+                                        "tooltip": [
+                                            {
+                                                "field": "Vendedor",
+                                                "type": "nominal",
+                                                "title": "Vendedor"
+                                            },
+                                            {
+                                                "field": "Orçamentos",
+                                                "type": "quantitative",
+                                                "title": "Orçamentos",
+                                                "format": "d"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "mark": {
+                                        "type": "text",
+                                        "dy": -10,
+                                        "fontSize": 14,
+                                        "fontWeight": "bold",
+                                        "color": "#16271F"
+                                    },
+                                    "encoding": {
+                                        "x": {
+                                            "field": "Vendedor",
+                                            "type": "nominal",
+                                            "sort": ordem_vendedores
                                         },
                                         "y": {
                                             "field": "Orçamentos",
@@ -1216,85 +1313,74 @@ elif menu == "📋 Painel de Orçamentos":
                                         }
                                     }
                                 }
-                            ],
-                            "resolve": {
-                                "scale": {
-                                    "y": "shared"
-                                }
-                            }
+                            ]
                         }
 
                         st.vega_lite_chart(
-                            df_vendedores_chart,
-                            chart_qtd,
-                            use_container_width=True
+                            por_vendedor,
+                            chart_qtd_spec,
+                            use_container_width=True,
                         )
 
                     with col_chart2:
                         st.caption("Valor total orçado")
 
-                        # Rótulo pronto em formato brasileiro.
-                        df_vendedores_chart["Valor_Label"] = (
-                            df_vendedores_chart["Valor_Total"]
-                            .apply(moeda_br)
-                        )
-
-                        spec_valor = {
-                            "height": 320,
+                        chart_valor_spec = {
+                            "height": 300,
                             "width": "container",
-                            "mark": {
-                                "type": "bar",
-                                "tooltip": True
-                            },
-                            "encoding": {
-                                "x": {
-                                    "field": "Vendedor",
-                                    "type": "nominal",
-                                    "sort": "-y",
-                                    "axis": {
-                                        "title": None,
-                                        "labelAngle": 0
-                                    }
-                                },
-                                "y": {
-                                    "field": "Valor_Total",
-                                    "type": "quantitative",
-                                    "axis": {
-                                        "title": None,
-                                        "format": "R$,.0f"
-                                    }
-                                },
-                                "tooltip": [
-                                    {
-                                        "field": "Vendedor",
-                                        "type": "nominal",
-                                        "title": "Vendedor"
-                                    },
-                                    {
-                                        "field": "Valor_Total",
-                                        "type": "quantitative",
-                                        "title": "Valor Total",
-                                        "format": ",.2f"
-                                    }
-                                ]
-                            }
-                        }
-
-                        chart_valor = {
                             "layer": [
-                                spec_valor,
                                 {
                                     "mark": {
-                                        "type": "text",
-                                        "dy": -10,
-                                        "fontSize": 13,
-                                        "fontWeight": "bold"
+                                        "type": "bar",
+                                        "color": "#B9954A",
+                                        "cornerRadiusTopLeft": 6,
+                                        "cornerRadiusTopRight": 6
                                     },
                                     "encoding": {
                                         "x": {
                                             "field": "Vendedor",
                                             "type": "nominal",
-                                            "sort": "-y"
+                                            "sort": ordem_vendedores,
+                                            "axis": {
+                                                "title": None,
+                                                "labelAngle": 0
+                                            }
+                                        },
+                                        "y": {
+                                            "field": "Valor_Total",
+                                            "type": "quantitative",
+                                            "axis": {
+                                                "title": None,
+                                                "format": ",.0f"
+                                            }
+                                        },
+                                        "tooltip": [
+                                            {
+                                                "field": "Vendedor",
+                                                "type": "nominal",
+                                                "title": "Vendedor"
+                                            },
+                                            {
+                                                "field": "Valor_Label",
+                                                "type": "nominal",
+                                                "title": "Valor Total"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "mark": {
+                                        "type": "text",
+                                        "dy": -10,
+                                        "fontSize": 13,
+                                        "fontWeight": "bold",
+                                        "color": "#16271F"
+                                    },
+                                    "encoding": {
+                                        "x": {
+                                            "field": "Vendedor",
+                                            "type": "nominal",
+                                            "sort": ordem_vendedores
                                         },
                                         "y": {
                                             "field": "Valor_Total",
@@ -1306,18 +1392,13 @@ elif menu == "📋 Painel de Orçamentos":
                                         }
                                     }
                                 }
-                            ],
-                            "resolve": {
-                                "scale": {
-                                    "y": "shared"
-                                }
-                            }
+                            ]
                         }
 
                         st.vega_lite_chart(
-                            df_vendedores_chart,
-                            chart_valor,
-                            use_container_width=True
+                            por_vendedor,
+                            chart_valor_spec,
+                            use_container_width=True,
                         )
                 else:
                     st.info("Sem dados por vendedor no período selecionado.")
@@ -1335,9 +1416,7 @@ elif menu == "📋 Painel de Orçamentos":
                 .dt.strftime("%d/%m/%Y %H:%M")
             )
 
-            df_exibir["Cliente"] = df_filtrado[col_nome]
             df_exibir["Vendedor"] = df_filtrado["Vendedor_Exibicao"]
-            df_exibir["WhatsApp"] = df_filtrado[col_whats]
             df_exibir["Resumo do Serviço"] = df_filtrado[col_resumo]
 
             df_exibir["Valor Total"] = (
@@ -1351,14 +1430,8 @@ elif menu == "📋 Painel de Orçamentos":
                 "Data do Envio": st.column_config.TextColumn(
                     "Data do Envio"
                 ),
-                "Cliente": st.column_config.TextColumn(
-                    "Cliente"
-                ),
                 "Vendedor": st.column_config.TextColumn(
                     "Vendedor"
-                ),
-                "WhatsApp": st.column_config.TextColumn(
-                    "WhatsApp"
                 ),
                 "Resumo do Serviço": st.column_config.TextColumn(
                     "Resumo do Serviço"
