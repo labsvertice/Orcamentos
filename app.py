@@ -832,10 +832,30 @@ elif menu == "📋 Painel de Orçamentos":
         )
 
         col_pdf = next(
-            (c for c in df_dados.columns
-             if "http" in c.lower() or "pdf" in c.lower() or "link" in c.lower()),
+            (
+                c for c in df_dados.columns
+                if str(c).strip().lower() in {
+                    "pdf_link",
+                    "pdf link",
+                    "proposta_pdf",
+                    "proposta pdf",
+                    "link_pdf",
+                    "link pdf",
+                }
+            ),
             None
         )
+
+        # Compatibilidade com eventuais nomes antigos de coluna.
+        if col_pdf is None:
+            col_pdf = next(
+                (
+                    c for c in df_dados.columns
+                    if "pdf" in str(c).lower()
+                    or "link" in str(c).lower()
+                ),
+                None
+            )
 
         # ------------------------------------------------------------------
         # Data
@@ -1519,13 +1539,19 @@ elif menu == "📋 Painel de Orçamentos":
             }
 
             if col_pdf:
-                df_exibir["Proposta (PDF)"] = df_filtrado[col_pdf]
+                df_exibir["Proposta (PDF)"] = (
+                    df_filtrado[col_pdf]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                )
 
                 config_colunas["Proposta (PDF)"] = (
                     st.column_config.LinkColumn(
                         "Proposta (PDF)",
                         help="Clique para abrir o PDF da proposta.",
-                        display_text="📥 Abrir PDF"
+                        display_text="📥 Abrir PDF",
+                        validate="^https?://.*$"
                     )
                 )
 
