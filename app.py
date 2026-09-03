@@ -82,15 +82,15 @@ st.markdown(
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-}
-
-header[data-testid="stHeader"] [data-testid="stToolbar"] {
-    display: none !important;
-}
-
-header[data-testid="stHeader"] [data-testid="stDecoration"] {
-    display: none !important;
-}
+    }
+    
+    header[data-testid="stHeader"] [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    
+    header[data-testid="stHeader"] [data-testid="stDecoration"] {
+        display: none !important;
+    }
 
     .main .block-container,
     [data-testid="stMainBlockContainer"] {
