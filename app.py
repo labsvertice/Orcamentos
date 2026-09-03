@@ -78,12 +78,19 @@ st.markdown(
         background-color: var(--brand-bg) !important;
     }
 
-    header[data-testid="stHeader"],
-    [data-testid="stHeader"],
-    header {
-        display: none !important;
-        height: 0px !important;
-    }
+    header[data-testid="stHeader"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+header[data-testid="stHeader"] [data-testid="stToolbar"] {
+    display: none !important;
+}
+
+header[data-testid="stHeader"] [data-testid="stDecoration"] {
+    display: none !important;
+}
 
     .main .block-container,
     [data-testid="stMainBlockContainer"] {
