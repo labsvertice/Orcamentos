@@ -29,14 +29,13 @@ WEBAPP_URL = (
 #
 # A URL e a API Key ficam nos Secrets do Streamlit.
 #
-# IMPORTANTE:
-# A instância NÃO fica fixa no código.
+# A instância NÃO é fixa no código.
 #
-# A instância efetiva é resolvida assim:
+# Regra:
 #
 # 1. Evolution_Instance do usuário
 # 2. se vazio → Evolution_Instance da empresa
-# 3. se ambos vazios → WhatsApp não configurado
+# 3. se ambos vazios → nenhum WhatsApp configurado
 #
 # =================================================================================
 
@@ -569,14 +568,18 @@ def obter_estado_instancia(
     instance_name
 ):
     """
-    Consulta o estado de uma instância.
+    Consulta o estado atual da instância.
+
+    Esta função NÃO possui cache.
+    Portanto, quando chamada durante o envio
+    de um orçamento, consulta a Evolution em tempo real.
 
     Retorno:
         {
             "ok": True/False,
-            "exists": True/False,
-            "state": "open"/"close"/...,
-            "status_code": 200/404/...,
+            "exists": True/False/None,
+            "state": "open"/"close"/"disconnected",
+            "status_code": 200/404/...
             "data": {...}
         }
     """
@@ -589,6 +592,7 @@ def obter_estado_instancia(
             "state": "disconnected",
             "status_code": None,
             "data": {},
+            "erro": "Instância não informada.",
         }
 
     if not evolution_configurada():
@@ -599,6 +603,9 @@ def obter_estado_instancia(
             "state": "disconnected",
             "status_code": None,
             "data": {},
+            "erro": (
+                "A Evolution API não está configurada."
+            ),
         }
 
     try:
@@ -615,9 +622,12 @@ def obter_estado_instancia(
             timeout=5,
         )
 
-        if response.status_code == 200:
-
+        try:
             data = response.json()
+        except Exception:
+            data = {}
+
+        if response.status_code == 200:
 
             state = (
                 data
@@ -634,6 +644,7 @@ def obter_estado_instancia(
                 "state": state,
                 "status_code": 200,
                 "data": data,
+                "erro": None,
             }
 
         if response.status_code == 404:
@@ -643,7 +654,11 @@ def obter_estado_instancia(
                 "exists": False,
                 "state": "disconnected",
                 "status_code": 404,
-                "data": {},
+                "data": data,
+                "erro": (
+                    "A instância não existe "
+                    "na Evolution API."
+                ),
             }
 
         return {
@@ -651,7 +666,39 @@ def obter_estado_instancia(
             "exists": True,
             "state": "disconnected",
             "status_code": response.status_code,
+            "data": data,
+            "erro": (
+                "Não foi possível consultar "
+                "a Evolution API."
+            ),
+        }
+
+    except requests.exceptions.Timeout:
+
+        return {
+            "ok": False,
+            "exists": None,
+            "state": "disconnected",
+            "status_code": None,
             "data": {},
+            "erro": (
+                "A Evolution API demorou "
+                "demais para responder."
+            ),
+        }
+
+    except requests.exceptions.ConnectionError:
+
+        return {
+            "ok": False,
+            "exists": None,
+            "state": "disconnected",
+            "status_code": None,
+            "data": {},
+            "erro": (
+                "Não foi possível conectar "
+                "ao servidor da Evolution API."
+            ),
         }
 
     except Exception as e:
@@ -661,23 +708,83 @@ def obter_estado_instancia(
             "exists": None,
             "state": "disconnected",
             "status_code": None,
-            "data": {
-                "error": str(e)
-            },
+            "data": {},
+            "erro": str(e),
         }
 
+
+def checar_whatsapp_em_tempo_real(
+    instance_name
+):
+    """
+    Verificação sem cache usada especificamente
+    antes de criar um orçamento.
+
+    Não devemos usar um indicador antigo da interface
+    para decidir se o envio pode acontecer.
+    """
+
+    if not instance_name:
+
+        return {
+            "conectado": False,
+            "motivo": (
+                "Nenhum WhatsApp foi "
+                "configurado."
+            ),
+        }
+
+    estado = obter_estado_instancia(
+        instance_name
+    )
+
+    if (
+        estado["ok"]
+        and
+        estado["exists"]
+        and
+        estado["state"] == "open"
+    ):
+
+        return {
+            "conectado": True,
+            "motivo": None,
+        }
+
+    if estado["status_code"] == 404:
+
+        return {
+            "conectado": False,
+            "motivo": (
+                "A instância do WhatsApp "
+                "não existe na Evolution API."
+            ),
+        }
+
+    if estado["erro"]:
+
+        return {
+            "conectado": False,
+            "motivo": estado["erro"],
+        }
+
+    return {
+        "conectado": False,
+        "motivo": (
+            "O WhatsApp está desconectado."
+        ),
+    }
+
+
+# =================================================================================
+# CRIAÇÃO AUTOMÁTICA DE INSTÂNCIA
+# =================================================================================
 
 def criar_instancia_evolution(
     instance_name
 ):
     """
-    Cria automaticamente uma instância
-    na Evolution API.
-
-    A Evolution API permite criação via:
-    POST /instance/create
-
-    com qrcode=true.
+    Cria automaticamente uma instância na Evolution API.
     """
 
     if not instance_name:
@@ -743,10 +850,6 @@ def criar_instancia_evolution(
                 ),
             }
 
-        # Caso a instância já exista,
-        # tratamos como possível condição
-        # de corrida e deixamos a rotina
-        # de conexão seguir.
         texto_resposta = str(
             data or response.text
         ).lower()
@@ -755,12 +858,11 @@ def criar_instancia_evolution(
             400,
             409,
         } and (
-            "already"
-            in texto_resposta
-            or "exist"
-            in texto_resposta
-            or "instanc"
-            in texto_resposta
+            "already" in texto_resposta
+            or
+            "exist" in texto_resposta
+            or
+            "instanc" in texto_resposta
         ):
 
             return {
@@ -800,9 +902,6 @@ def obter_qr_code_evolution(
 ):
     """
     Solicita o QR Code da instância.
-
-    Usa:
-    GET /instance/connect/{instanceName}
     """
 
     if not instance_name:
@@ -926,13 +1025,8 @@ def preparar_instancia_para_conexao(
     instance_name
 ):
     """
-    Prepara a instância para conexão.
-
-    Fluxo:
-        1. verifica existência
-        2. se não existir, cria
-        3. depois solicita o QR Code
-
+    Verifica se a instância existe.
+    Se não existir, cria automaticamente.
     """
 
     estado = obter_estado_instancia(
@@ -960,9 +1054,7 @@ def preparar_instancia_para_conexao(
             "criacao": None,
             "mensagem": (
                 "Não foi possível verificar "
-                "a instância na Evolution API. "
-                f"Status Code: "
-                f"{estado['status_code']}"
+                "a instância na Evolution API."
             ),
         }
 
@@ -977,11 +1069,11 @@ def preparar_instancia_para_conexao(
             "criada_agora": False,
             "estado": estado,
             "criacao": criacao,
-            "mensagem": criacao["mensagem"],
+            "mensagem": (
+                criacao["mensagem"]
+            ),
         }
 
-    # A resposta de criação pode já trazer
-    # o QR Code. Vamos aproveitar primeiro.
     return {
         "ok": True,
         "criada_agora": True,
@@ -1027,10 +1119,13 @@ def extrair_qr_da_resposta(
 ):
     """
     Procura QR Code nos formatos mais comuns
-    retornados pela Evolution.
+    retornados pela Evolution API.
     """
 
-    if not isinstance(data, dict):
+    if not isinstance(
+        data,
+        dict
+    ):
 
         return None, None, None
 
@@ -1048,7 +1143,6 @@ def extrair_qr_da_resposta(
         data.get("code")
     )
 
-    # Algumas respostas encapsulam em qrcode.
     qrcode_obj = data.get(
         "qrcode"
     )
@@ -1072,11 +1166,11 @@ def extrair_qr_da_resposta(
 
         code = (
             code
-            or qrcode_obj.get("code")
+            or qrcode_obj.get(
+                "code"
+            )
         )
 
-    # Algumas respostas de criação
-    # trazem qrcode dentro de instance.
     instance_obj = data.get(
         "instance"
     )
@@ -1163,12 +1257,18 @@ def autenticar_usuario(
 
     c_empresa = localizar_coluna(
         df,
-        ["Empresa_ID", "Empresa"]
+        [
+            "Empresa_ID",
+            "Empresa"
+        ]
     )
 
     c_perfil = localizar_coluna(
         df,
-        ["Perfil_Acesso", "Perfil"]
+        [
+            "Perfil_Acesso",
+            "Perfil"
+        ]
     )
 
     c_ativo = localizar_coluna(
@@ -1184,8 +1284,6 @@ def autenticar_usuario(
         ]
     )
 
-    # NOVO:
-    # WhatsApp individual do usuário.
     c_instancia_usuario = localizar_coluna(
         df,
         [
@@ -1274,7 +1372,6 @@ def autenticar_usuario(
             "Login ou senha inválidos."
         )
 
-    # Instância específica do usuário.
     instancia_usuario = ""
 
     if c_instancia_usuario:
@@ -1290,8 +1387,9 @@ def autenticar_usuario(
         ):
 
             instancia_usuario = (
-                str(valor_instancia)
-                .strip()
+                str(
+                    valor_instancia
+                ).strip()
             )
 
     return {
@@ -1393,8 +1491,6 @@ def obter_empresa(
         ["Cota"]
     )
 
-    # NOVO:
-    # WhatsApp padrão da empresa.
     c_instancia_empresa = localizar_coluna(
         df,
         [
@@ -1467,7 +1563,6 @@ def obter_empresa(
             "usuário está inativa."
         )
 
-    # Instância padrão da empresa.
     instancia_empresa = ""
 
     if c_instancia_empresa:
@@ -1573,10 +1668,6 @@ def tela_login():
         unsafe_allow_html=True
     )
 
-    # --------------------------------------------------------
-    # CABEÇALHO
-    # --------------------------------------------------------
-
     _, header_col, _ = st.columns(
         [1, 2, 1]
     )
@@ -1607,10 +1698,6 @@ def tela_login():
         unsafe_allow_html=True,
     )
 
-    # --------------------------------------------------------
-    # FORMULÁRIO
-    # --------------------------------------------------------
-
     _, centro, _ = st.columns(
         [1, 1.35, 1]
     )
@@ -1636,10 +1723,6 @@ def tela_login():
                 "ENTRAR",
                 use_container_width=True,
             )
-
-    # --------------------------------------------------------
-    # RODAPÉ
-    # --------------------------------------------------------
 
     if os.path.exists(
         "rodape.png"
@@ -1699,10 +1782,6 @@ def tela_login():
                     )
 
                 else:
-
-                    # ------------------------------------------------
-                    # IDENTIDADE
-                    # ------------------------------------------------
 
                     st.session_state[
                         "autenticado"
@@ -1783,6 +1862,11 @@ def tela_login():
                     # =================================================
                     # WHATSAPP
                     # =================================================
+                    #
+                    # Prioridade:
+                    # usuário → empresa
+                    #
+                    # =================================================
 
                     st.session_state[
                         "evolution_instance_usuario"
@@ -1800,8 +1884,6 @@ def tela_login():
                         ]
                     )
 
-                    # Prioridade:
-                    # usuário → empresa
                     st.session_state[
                         "evolution_instance"
                     ] = (
@@ -1867,19 +1949,6 @@ PERFIL_ACESSO_LOGADO = (
 
 # =================================================================================
 # INSTÂNCIA EFETIVA
-# =================================================================================
-#
-# Regra:
-#
-# 1. Usuário possui Evolution_Instance?
-#       SIM → usa do usuário
-#
-# 2. Usuário vazio?
-#       usa Evolution_Instance da empresa
-#
-# 3. Ambos vazios?
-#       nenhum WhatsApp configurado
-#
 # =================================================================================
 
 INSTANCE_NAME_LOGADA = (
@@ -1990,26 +2059,34 @@ if menu == "➕ Novo Orçamento":
         "proposta comercial."
     )
 
-    # NÃO cria instância aqui.
-    # Apenas verifica o status.
-    estado_wa = obter_estado_instancia(
+    # ------------------------------------------------------------------
+    # Indicador visual
+    # ------------------------------------------------------------------
+    estado_visual = obter_estado_instancia(
         INSTANCE_NAME_LOGADA
     )
 
     if (
-        INSTANCE_NAME_LOGADA
-        and estado_wa["state"] == "open"
+        estado_visual["ok"]
+        and
+        estado_visual["state"] == "open"
     ):
 
-        badge_wa = "🟢 Conectado"
+        badge_wa = (
+            "🟢 Conectado"
+        )
 
     elif INSTANCE_NAME_LOGADA:
 
-        badge_wa = "🔴 Desconectado"
+        badge_wa = (
+            "🔴 Desconectado"
+        )
 
     else:
 
-        badge_wa = "⚪ Não configurado"
+        badge_wa = (
+            "⚪ Não configurado"
+        )
 
     with st.form(
         "form_orcamento",
@@ -2076,30 +2153,89 @@ if menu == "➕ Novo Orçamento":
 
         if submitted:
 
-            if (
+            # ==========================================================
+            # VALIDAÇÃO DOS CAMPOS
+            # ==========================================================
+
+            if not (
                 nome_cliente
                 and whatsapp_cliente
                 and resumo_servicos
                 and itens_valores
             ):
 
-                if not WEBAPP_URL:
+                st.error(
+                    "Por favor, preencha todos "
+                    "os campos obrigatórios (*)."
+                )
 
-                    st.error(
-                        "Por favor, configure "
-                        "a URL do seu Apps Script "
-                        "Web App no código."
+            elif not WEBAPP_URL:
+
+                st.error(
+                    "A URL do Apps Script "
+                    "não está configurada."
+                )
+
+            elif not INSTANCE_NAME_LOGADA:
+
+                st.error(
+                    "🔴 **WhatsApp não configurado**"
+                )
+
+                st.info(
+                    "Conecte um WhatsApp em "
+                    "**📱 Conectar WhatsApp** "
+                    "antes de criar o orçamento."
+                )
+
+            else:
+
+                # ======================================================
+                # VERIFICAÇÃO EM TEMPO REAL
+                # ======================================================
+                #
+                # IMPORTANTE:
+                # esta consulta NÃO usa cache.
+                #
+                # O indicador exibido na tela pode estar alguns segundos
+                # atrasado. Já esta consulta representa o estado real
+                # no momento em que o usuário clicou em CRIAR ORÇAMENTO.
+                #
+                # ======================================================
+
+                with st.spinner(
+                    "Verificando conexão do WhatsApp..."
+                ):
+
+                    verificacao_wa = (
+                        checar_whatsapp_em_tempo_real(
+                            INSTANCE_NAME_LOGADA
+                        )
                     )
 
-                elif not INSTANCE_NAME_LOGADA:
+                if not verificacao_wa[
+                    "conectado"
+                ]:
 
                     st.error(
-                        "Nenhum WhatsApp foi "
-                        "configurado para este "
-                        "usuário ou para a empresa."
+                        "🔴 **WhatsApp não conectado**"
                     )
+
+                    st.info(
+                        "Conecte ou reconecte o WhatsApp "
+                        "em **📱 Conectar WhatsApp** "
+                        "e tente novamente."
+                    )
+
+                    # NÃO chama o Apps Script.
+                    # NÃO cria orçamento.
+                    # NÃO consome processamento.
 
                 else:
+
+                    # ==================================================
+                    # CONEXÃO CONFIRMADA
+                    # ==================================================
 
                     with st.spinner(
                         "Registrando e processando proposta..."
@@ -2125,10 +2261,8 @@ if menu == "➕ Novo Orçamento":
                                     itens_valores
                                 ),
 
-                                # =================================================
-                                # INSTÂNCIA EFETIVA
-                                # =================================================
-
+                                # Instância efetiva:
+                                # usuário → empresa
                                 "instance": (
                                     INSTANCE_NAME_LOGADA
                                 ),
@@ -2158,11 +2292,34 @@ if menu == "➕ Novo Orçamento":
                                 )
                             )
 
+                            # ==================================================
+                            # TENTA INTERPRETAR JSON
+                            # ==================================================
+
+                            try:
+
+                                resposta_json = (
+                                    response.json()
+                                )
+
+                            except Exception:
+
+                                resposta_json = None
+
+                            # ==================================================
+                            # SUCESSO
+                            # ==================================================
+
                             if (
                                 response.status_code
                                 == 200
                                 and
-                                response.json().get(
+                                isinstance(
+                                    resposta_json,
+                                    dict
+                                )
+                                and
+                                resposta_json.get(
                                     "status"
                                 )
                                 == "success"
@@ -2174,26 +2331,131 @@ if menu == "➕ Novo Orçamento":
                                     "registrado com sucesso!"
                                 )
 
-                            else:
+                            # ==================================================
+                            # FALHA DE WHATSAPP / GOOGLE HTML
+                            # ==================================================
+
+                            elif (
+                                isinstance(
+                                    response.text,
+                                    str
+                                )
+                                and
+                                (
+                                    "<html"
+                                    in response.text.lower()
+                                    or
+                                    "<!doctype"
+                                    in response.text.lower()
+                                    or
+                                    "page not found"
+                                    in response.text.lower()
+                                )
+                            ):
 
                                 st.error(
-                                    "Erro ao registrar: "
-                                    f"{response.text}"
+                                    "🔴 **Não foi possível "
+                                    "concluir o envio.**"
                                 )
+
+                                st.info(
+                                    "O WhatsApp pode ter sido "
+                                    "desconectado durante o "
+                                    "processamento. Verifique "
+                                    "a conexão e tente novamente."
+                                )
+
+                            # ==================================================
+                            # OUTRAS RESPOSTAS HTTP
+                            # ==================================================
+
+                            else:
+
+                                mensagem_api = ""
+
+                                if (
+                                    isinstance(
+                                        resposta_json,
+                                        dict
+                                    )
+                                ):
+
+                                    mensagem_api = str(
+                                        resposta_json.get(
+                                            "message",
+                                            ""
+                                        )
+                                    ).strip()
+
+                                    if not mensagem_api:
+
+                                        mensagem_api = str(
+                                            resposta_json.get(
+                                                "erro",
+                                                ""
+                                            )
+                                        ).strip()
+
+                                if mensagem_api:
+
+                                    st.error(
+                                        f"Erro ao registrar: "
+                                        f"{mensagem_api}"
+                                    )
+
+                                else:
+
+                                    st.error(
+                                        "Não foi possível "
+                                        "registrar o orçamento."
+                                    )
+
+                                    st.info(
+                                        "Verifique o WhatsApp "
+                                        "e tente novamente."
+                                    )
+
+                        # ======================================================
+                        # ERRO DE TIMEOUT / CONEXÃO
+                        # ======================================================
+
+                        except requests.exceptions.Timeout:
+
+                            st.error(
+                                "⏱️ **Tempo limite excedido.**"
+                            )
+
+                            st.info(
+                                "O processamento demorou "
+                                "mais que o esperado. "
+                                "Verifique o WhatsApp e "
+                                "consulte o painel antes "
+                                "de tentar novamente."
+                            )
+
+                        except requests.exceptions.ConnectionError:
+
+                            st.error(
+                                "🌐 **Não foi possível "
+                                "comunicar com o Apps Script.**"
+                            )
+
+                            st.info(
+                                "Verifique sua conexão "
+                                "com a internet e tente "
+                                "novamente."
+                            )
 
                         except Exception as e:
 
                             st.error(
-                                "Falha na comunicação: "
-                                f"{e}"
+                                "Não foi possível concluir "
+                                "o processamento do orçamento."
                             )
 
-            else:
-
-                st.error(
-                    "Por favor, preencha todos "
-                    "os campos obrigatórios (*)."
-                )
+                            st.caption(
+                                f"Detalhe técnico: {e}"
+                            )
 
 
 # =================================================================================
@@ -3728,14 +3990,6 @@ elif menu == "📱 Conectar WhatsApp":
         # ================================================================
         # PREPARAÇÃO AUTOMÁTICA
         # ================================================================
-        #
-        # Mesmo sem clicar no botão, a página
-        # já tenta preparar a instância.
-        #
-        # O botão serve para atualizar/refazer
-        # o processo.
-        #
-        # ================================================================
 
         with st.spinner(
             "Verificando WhatsApp..."
@@ -3777,8 +4031,7 @@ elif menu == "📱 Conectar WhatsApp":
                 )
 
             # ============================================================
-            # PRIMEIRO:
-            # tenta usar QR retornado pela criação
+            # QR RETORNADO PELA CRIAÇÃO
             # ============================================================
 
             base64_qr = None
@@ -3807,8 +4060,7 @@ elif menu == "📱 Conectar WhatsApp":
                 )
 
             # ============================================================
-            # DEPOIS:
-            # consulta o estado atual
+            # CONSULTA ESTADO
             # ============================================================
 
             estado = obter_estado_instancia(
@@ -3835,14 +4087,12 @@ elif menu == "📱 Conectar WhatsApp":
                     "automaticamente aos clientes."
                 )
 
-            # ============================================================
-            # NÃO CONECTADO
-            # ============================================================
-
             else:
 
-                # Se ainda não temos QR,
-                # solicitamos via endpoint connect.
+                # ========================================================
+                # SOLICITA QR
+                # ========================================================
+
                 if not base64_qr:
 
                     with st.spinner(
@@ -3877,45 +4127,6 @@ elif menu == "📱 Conectar WhatsApp":
                             ]
                         )
 
-                    else:
-
-                        # Tenta mais uma vez
-                        # somente se a instância
-                        # acabou de ser criada.
-                        if (
-                            preparo.get(
-                                "criada_agora"
-                            )
-                        ):
-
-                            qr_resultado = (
-                                obter_qr_code_evolution(
-                                    INSTANCE_NAME_LOGADA
-                                )
-                            )
-
-                            if qr_resultado[
-                                "ok"
-                            ]:
-
-                                base64_qr = (
-                                    qr_resultado[
-                                        "base64"
-                                    ]
-                                )
-
-                                pairing_code = (
-                                    qr_resultado[
-                                        "pairing_code"
-                                    ]
-                                )
-
-                                code = (
-                                    qr_resultado[
-                                        "code"
-                                    ]
-                                )
-
                 # ========================================================
                 # MOSTRA QR
                 # ========================================================
@@ -3942,10 +4153,12 @@ elif menu == "📱 Conectar WhatsApp":
 
                     if qr_bytes:
 
-                        col_qr1, col_qr2, col_qr3 = (
-                            st.columns(
-                                [1, 1, 1]
-                            )
+                        (
+                            col_qr1,
+                            col_qr2,
+                            col_qr3
+                        ) = st.columns(
+                            [1, 1, 1]
                         )
 
                         with col_qr2:
@@ -3993,10 +4206,8 @@ elif menu == "📱 Conectar WhatsApp":
                         "Gerar QR Code**."
                     )
 
-                    # Mostra eventual erro técnico
-                    # somente para diagnóstico.
                     if (
-                        'qr_resultado'
+                        "qr_resultado"
                         in locals()
                         and
                         not qr_resultado.get(
@@ -4018,10 +4229,6 @@ elif menu == "📱 Conectar WhatsApp":
                                 "solicitar QR: "
                                 f"{status_qr}"
                             )
-
-            # ============================================================
-            # DEBUG CONTROLADO
-            # ============================================================
 
             if (
                 verificar
