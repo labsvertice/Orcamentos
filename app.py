@@ -1,9 +1,11 @@
 import base64
 import os
 import re
+
 import pandas as pd
 import requests
 import streamlit as st
+
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from streamlit_gsheets import GSheetsConnection
@@ -14,28 +16,27 @@ from streamlit_gsheets import GSheetsConnection
 # =================================================================================
 
 # URL DO SEU APP WEB DO GOOGLE APPS SCRIPT (ORÇAMENTOS)
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK/exec"
+WEBAPP_URL = (
+    "https://script.google.com/macros/s/"
+    "AKfycbwxyKpNaItwSD3CvC-gKgVWnIirhuF5_eTUvN9fultN5ZvktRob9071ZHHzE333leGK"
+    "/exec"
+)
 
 
 # =================================================================================
 # CONFIGURAÇÕES DA EVOLUTION API
 # =================================================================================
 #
-# A URL e a API Key ficam protegidas no Streamlit Secrets.
+# A URL e a API Key ficam nos Secrets do Streamlit.
 #
 # IMPORTANTE:
-# A instância NÃO é fixa.
+# A instância NÃO fica fixa no código.
 #
-# O sistema resolve automaticamente:
+# A instância efetiva é resolvida assim:
 #
 # 1. Evolution_Instance do usuário
 # 2. se vazio → Evolution_Instance da empresa
-#
-# Isso permite:
-#
-# - Empresa com um WhatsApp compartilhado
-# - Cada colaborador com seu próprio WhatsApp
-# - Modelo misto
+# 3. se ambos vazios → WhatsApp não configurado
 #
 # =================================================================================
 
@@ -261,18 +262,21 @@ SPREADSHEET_URL = (
     "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU/edit"
 )
 
-SPREADSHEET_ID = "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU"
+SPREADSHEET_ID = (
+    "1B0w56eDkP9kT6a4o0eDS3Ll1qA5r1VYexBxbEZT38bU"
+)
 
-# GIDs confirmados
 USUARIOS_GID = 1751518313
 EMPRESAS_GID = 751640019
 
-# Conexão GSheets — padrão que já funciona no projeto.
-conn = st.connection("gsheets", type=GSheetsConnection)
+conn = st.connection(
+    "gsheets",
+    type=GSheetsConnection
+)
 
 
 def obter_google_sheets_service():
-    """Cria o cliente autenticado do Google Sheets a partir do Secrets."""
+    """Cria o cliente autenticado do Google Sheets a partir dos Secrets."""
     try:
         config = st.secrets["connections"]["gsheets"]
 
@@ -284,7 +288,11 @@ def obter_google_sheets_service():
             "token_uri",
         ]
 
-        faltantes = [chave for chave in required if chave not in config]
+        faltantes = [
+            chave
+            for chave in required
+            if chave not in config
+        ]
 
         if faltantes:
             raise RuntimeError(
@@ -295,10 +303,16 @@ def obter_google_sheets_service():
         service_account_info = {
             "type": config["type"],
             "project_id": config["project_id"],
-            "private_key_id": config.get("private_key_id", ""),
+            "private_key_id": config.get(
+                "private_key_id",
+                ""
+            ),
             "private_key": config["private_key"],
             "client_email": config["client_email"],
-            "client_id": config.get("client_id", ""),
+            "client_id": config.get(
+                "client_id",
+                ""
+            ),
             "auth_uri": config.get(
                 "auth_uri",
                 "https://accounts.google.com/o/oauth2/auth",
@@ -310,14 +324,14 @@ def obter_google_sheets_service():
             ),
             "client_x509_cert_url": config.get(
                 "client_x509_cert_url",
-                "",
+                "https://www.googleapis.com/oauth2/v1/certs",
             ),
         }
 
         credentials = Credentials.from_service_account_info(
             service_account_info,
             scopes=[
-                "https://www.googleapis.com/auth/spreadsheets.readonly",
+                "https://www.googleapis.com/auth/spreadsheets.readonly"
             ],
         )
 
@@ -330,14 +344,19 @@ def obter_google_sheets_service():
 
     except Exception as e:
         raise RuntimeError(
-            f"Falha ao autenticar a Service Account do Google Sheets: {e}"
+            "Falha ao autenticar a Service Account "
+            f"do Google Sheets: {e}"
         ) from e
 
 
 def normalizar_colunas(df):
     if df is not None and not df.empty:
         df = df.copy()
-        df.columns = df.columns.astype(str).str.strip()
+        df.columns = (
+            df.columns
+            .astype(str)
+            .str.strip()
+        )
 
     return df
 
@@ -360,7 +379,10 @@ def ler_aba_sheets(nome_aba):
             .execute()
         )
 
-        values = result.get("values", [])
+        values = result.get(
+            "values",
+            []
+        )
 
         if not values:
             return pd.DataFrame()
@@ -370,76 +392,120 @@ def ler_aba_sheets(nome_aba):
         largura = max(
             len(cabecalho),
             max(
-                (len(linha) for linha in values[1:]),
+                (
+                    len(linha)
+                    for linha in values[1:]
+                ),
                 default=0
             ),
         )
 
-        cabecalho = list(cabecalho) + [
-            f"Coluna_{i}"
-            for i in range(len(cabecalho), largura)
-        ]
+        cabecalho = (
+            list(cabecalho)
+            + [
+                f"Coluna_{i}"
+                for i in range(
+                    len(cabecalho),
+                    largura
+                )
+            ]
+        )
 
         dados = []
 
         for linha in values[1:]:
-            linha = list(linha) + [""] * (largura - len(linha))
-            dados.append(linha[:largura])
+
+            linha = (
+                list(linha)
+                + [""] * (
+                    largura - len(linha)
+                )
+            )
+
+            dados.append(
+                linha[:largura]
+            )
 
         df = pd.DataFrame(
             dados,
             columns=cabecalho
         )
 
-        df.columns = df.columns.astype(str).str.strip()
+        df.columns = (
+            df.columns
+            .astype(str)
+            .str.strip()
+        )
 
         return df
 
     except Exception as e:
         raise RuntimeError(
-            f"Não foi possível ler a aba '{nome_aba}' "
-            f"da planilha do Proposta Inteligente: {e}"
+            f"Não foi possível ler a aba "
+            f"'{nome_aba}' da planilha do "
+            f"Proposta Inteligente: {e}"
         ) from e
 
 
 def carregar_dados_planilha():
     """Lê Form_Responses usando a conexão GSheets."""
     try:
-        df = conn.read(ttl=0)
-        return normalizar_colunas(df)
+        df = conn.read(
+            ttl=0
+        )
+
+        return normalizar_colunas(
+            df
+        )
 
     except Exception as e:
+
         st.error(
             f"Erro ao carregar Form_Responses: {e}"
         )
+
         return None
 
 
 def carregar_usuarios():
+
     try:
-        return ler_aba_sheets("Usuarios")
+        return ler_aba_sheets(
+            "Usuarios"
+        )
 
     except Exception as e:
+
         st.error(
             f"Erro ao carregar a aba Usuarios "
             f"(GID {USUARIOS_GID}): {e}"
         )
+
         return None
 
 
 def carregar_empresas():
+
     try:
-        return ler_aba_sheets("Empresas")
+        return ler_aba_sheets(
+            "Empresas"
+        )
 
     except Exception as e:
+
         st.error(
             f"Erro ao carregar a aba Empresas "
             f"(GID {EMPRESAS_GID}): {e}"
         )
+
         return None
 
 
-def localizar_coluna(df, candidatos):
+def localizar_coluna(
+    df,
+    candidatos
+):
+
     if df is None or df.empty:
         return None
 
@@ -449,84 +515,636 @@ def localizar_coluna(df, candidatos):
     }
 
     for candidato in candidatos:
-        chave = str(candidato).strip().lower()
+
+        chave = (
+            str(candidato)
+            .strip()
+            .lower()
+        )
 
         if chave in mapa:
+
             return mapa[chave]
 
     return None
 
 
 def valor_ativo(valor):
-    return str(valor).strip().lower() in {
-        "sim",
-        "true",
-        "1",
-        "ativo",
-        "yes",
+
+    return (
+        str(valor)
+        .strip()
+        .lower()
+        in {
+            "sim",
+            "true",
+            "1",
+            "ativo",
+            "yes",
+        }
+    )
+
+
+# =================================================================================
+# EVOLUTION API
+# =================================================================================
+
+def evolution_configurada():
+
+    return bool(
+        EVOLUTION_API_URL
+        and API_KEY
+    )
+
+
+def evolution_headers():
+
+    return {
+        "apikey": API_KEY,
+        "Content-Type": "application/json",
     }
 
 
-# =================================================================================
-# EVOLUTION API — STATUS
-# =================================================================================
-
-@st.cache_data(ttl=15)
-def checar_status_whatsapp_rapido(instance_name):
+def obter_estado_instancia(
+    instance_name
+):
     """
-    Consulta o status da instância efetiva da sessão.
+    Consulta o estado de uma instância.
 
-    O nome da instância entra como parâmetro para que o cache
-    não compartilhe indevidamente o status de uma instância com outra.
+    Retorno:
+        {
+            "ok": True/False,
+            "exists": True/False,
+            "state": "open"/"close"/...,
+            "status_code": 200/404/...,
+            "data": {...}
+        }
     """
 
     if not instance_name:
-        return False
 
-    if not EVOLUTION_API_URL or not API_KEY:
-        return False
-
-    try:
-        url_state = (
-            f"{EVOLUTION_API_URL}"
-            f"/instance/connectionState/{instance_name}"
-        )
-
-        headers = {
-            "apikey": API_KEY
+        return {
+            "ok": False,
+            "exists": False,
+            "state": "disconnected",
+            "status_code": None,
+            "data": {},
         }
 
-        res = requests.get(
-            url_state,
-            headers=headers,
-            timeout=3
+    if not evolution_configurada():
+
+        return {
+            "ok": False,
+            "exists": False,
+            "state": "disconnected",
+            "status_code": None,
+            "data": {},
+        }
+
+    try:
+
+        url = (
+            f"{EVOLUTION_API_URL}"
+            f"/instance/connectionState/"
+            f"{instance_name}"
         )
 
-        if res.status_code == 200:
+        response = requests.get(
+            url,
+            headers=evolution_headers(),
+            timeout=5,
+        )
+
+        if response.status_code == 200:
+
+            data = response.json()
+
             state = (
-                res.json()
+                data
                 .get("instance", {})
-                .get("state", "disconnected")
+                .get(
+                    "state",
+                    "disconnected"
+                )
             )
 
-            return state == "open"
+            return {
+                "ok": True,
+                "exists": True,
+                "state": state,
+                "status_code": 200,
+                "data": data,
+            }
+
+        if response.status_code == 404:
+
+            return {
+                "ok": False,
+                "exists": False,
+                "state": "disconnected",
+                "status_code": 404,
+                "data": {},
+            }
+
+        return {
+            "ok": False,
+            "exists": True,
+            "state": "disconnected",
+            "status_code": response.status_code,
+            "data": {},
+        }
+
+    except Exception as e:
+
+        return {
+            "ok": False,
+            "exists": None,
+            "state": "disconnected",
+            "status_code": None,
+            "data": {
+                "error": str(e)
+            },
+        }
+
+
+def criar_instancia_evolution(
+    instance_name
+):
+    """
+    Cria automaticamente uma instância
+    na Evolution API.
+
+    A Evolution API permite criação via:
+    POST /instance/create
+
+    com qrcode=true.
+    """
+
+    if not instance_name:
+
+        return {
+            "ok": False,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "Nome da instância não informado."
+            ),
+        }
+
+    if not evolution_configurada():
+
+        return {
+            "ok": False,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "A Evolution API não está "
+                "configurada nos Secrets."
+            ),
+        }
+
+    try:
+
+        url = (
+            f"{EVOLUTION_API_URL}"
+            "/instance/create"
+        )
+
+        payload = {
+            "instanceName": instance_name,
+            "qrcode": True,
+            "integration": "WHATSAPP-BAILEYS",
+        }
+
+        response = requests.post(
+            url,
+            headers=evolution_headers(),
+            json=payload,
+            timeout=15,
+        )
+
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+
+        if response.status_code in {
+            200,
+            201,
+        }:
+
+            return {
+                "ok": True,
+                "status_code": response.status_code,
+                "data": data,
+                "mensagem": (
+                    "Instância criada "
+                    "com sucesso."
+                ),
+            }
+
+        # Caso a instância já exista,
+        # tratamos como possível condição
+        # de corrida e deixamos a rotina
+        # de conexão seguir.
+        texto_resposta = str(
+            data or response.text
+        ).lower()
+
+        if response.status_code in {
+            400,
+            409,
+        } and (
+            "already"
+            in texto_resposta
+            or "exist"
+            in texto_resposta
+            or "instanc"
+            in texto_resposta
+        ):
+
+            return {
+                "ok": True,
+                "status_code": response.status_code,
+                "data": data,
+                "mensagem": (
+                    "A instância já existe."
+                ),
+            }
+
+        return {
+            "ok": False,
+            "status_code": response.status_code,
+            "data": data,
+            "mensagem": (
+                "A Evolution API retornou "
+                f"status {response.status_code}."
+            ),
+        }
+
+    except Exception as e:
+
+        return {
+            "ok": False,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "Falha ao criar a instância: "
+                f"{e}"
+            ),
+        }
+
+
+def obter_qr_code_evolution(
+    instance_name
+):
+    """
+    Solicita o QR Code da instância.
+
+    Usa:
+    GET /instance/connect/{instanceName}
+    """
+
+    if not instance_name:
+
+        return {
+            "ok": False,
+            "base64": None,
+            "pairing_code": None,
+            "code": None,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "Nome da instância não informado."
+            ),
+        }
+
+    if not evolution_configurada():
+
+        return {
+            "ok": False,
+            "base64": None,
+            "pairing_code": None,
+            "code": None,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "A Evolution API não está "
+                "configurada nos Secrets."
+            ),
+        }
+
+    try:
+
+        url = (
+            f"{EVOLUTION_API_URL}"
+            f"/instance/connect/"
+            f"{instance_name}"
+        )
+
+        response = requests.get(
+            url,
+            headers=evolution_headers(),
+            timeout=10,
+        )
+
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+
+        if response.status_code == 200:
+
+            base64_qr = (
+                data.get("base64")
+                or data.get("qrcode")
+                or data.get("qrCode")
+            )
+
+            pairing_code = data.get(
+                "pairingCode"
+            )
+
+            code = data.get(
+                "code"
+            )
+
+            return {
+                "ok": bool(
+                    base64_qr
+                    or pairing_code
+                    or code
+                ),
+                "base64": base64_qr,
+                "pairing_code": pairing_code,
+                "code": code,
+                "status_code": 200,
+                "data": data,
+                "mensagem": (
+                    "QR Code obtido."
+                    if (
+                        base64_qr
+                        or pairing_code
+                        or code
+                    )
+                    else
+                    "A Evolution API não "
+                    "retornou o QR Code ainda."
+                ),
+            }
+
+        return {
+            "ok": False,
+            "base64": None,
+            "pairing_code": None,
+            "code": None,
+            "status_code": response.status_code,
+            "data": data,
+            "mensagem": (
+                "A Evolution API retornou "
+                f"status {response.status_code}."
+            ),
+        }
+
+    except Exception as e:
+
+        return {
+            "ok": False,
+            "base64": None,
+            "pairing_code": None,
+            "code": None,
+            "status_code": None,
+            "data": {},
+            "mensagem": (
+                "Falha ao obter o QR Code: "
+                f"{e}"
+            ),
+        }
+
+
+def preparar_instancia_para_conexao(
+    instance_name
+):
+    """
+    Prepara a instância para conexão.
+
+    Fluxo:
+        1. verifica existência
+        2. se não existir, cria
+        3. depois solicita o QR Code
+
+    """
+
+    estado = obter_estado_instancia(
+        instance_name
+    )
+
+    if estado["exists"] is True:
+
+        return {
+            "ok": True,
+            "criada_agora": False,
+            "estado": estado,
+            "criacao": None,
+        }
+
+    if estado["status_code"] not in {
+        404,
+        None,
+    }:
+
+        return {
+            "ok": False,
+            "criada_agora": False,
+            "estado": estado,
+            "criacao": None,
+            "mensagem": (
+                "Não foi possível verificar "
+                "a instância na Evolution API. "
+                f"Status Code: "
+                f"{estado['status_code']}"
+            ),
+        }
+
+    criacao = criar_instancia_evolution(
+        instance_name
+    )
+
+    if not criacao["ok"]:
+
+        return {
+            "ok": False,
+            "criada_agora": False,
+            "estado": estado,
+            "criacao": criacao,
+            "mensagem": criacao["mensagem"],
+        }
+
+    # A resposta de criação pode já trazer
+    # o QR Code. Vamos aproveitar primeiro.
+    return {
+        "ok": True,
+        "criada_agora": True,
+        "estado": estado,
+        "criacao": criacao,
+    }
+
+
+def obter_qr_bytes(
+    base64_qr
+):
+    """
+    Converte base64/data URI em bytes de imagem.
+    """
+
+    if not base64_qr:
+        return None
+
+    try:
+
+        valor = str(
+            base64_qr
+        ).strip()
+
+        if "," in valor:
+
+            valor = (
+                valor
+                .split(",", 1)[1]
+            )
+
+        return base64.b64decode(
+            valor
+        )
 
     except Exception:
-        pass
 
-    return False
+        return None
+
+
+def extrair_qr_da_resposta(
+    data
+):
+    """
+    Procura QR Code nos formatos mais comuns
+    retornados pela Evolution.
+    """
+
+    if not isinstance(data, dict):
+
+        return None, None, None
+
+    base64_qr = (
+        data.get("base64")
+        or data.get("qrcode")
+        or data.get("qrCode")
+    )
+
+    pairing_code = (
+        data.get("pairingCode")
+    )
+
+    code = (
+        data.get("code")
+    )
+
+    # Algumas respostas encapsulam em qrcode.
+    qrcode_obj = data.get(
+        "qrcode"
+    )
+
+    if isinstance(
+        qrcode_obj,
+        dict
+    ):
+
+        base64_qr = (
+            base64_qr
+            or qrcode_obj.get("base64")
+        )
+
+        pairing_code = (
+            pairing_code
+            or qrcode_obj.get(
+                "pairingCode"
+            )
+        )
+
+        code = (
+            code
+            or qrcode_obj.get("code")
+        )
+
+    # Algumas respostas de criação
+    # trazem qrcode dentro de instance.
+    instance_obj = data.get(
+        "instance"
+    )
+
+    if isinstance(
+        instance_obj,
+        dict
+    ):
+
+        instance_qrcode = (
+            instance_obj.get(
+                "qrcode"
+            )
+        )
+
+        if isinstance(
+            instance_qrcode,
+            dict
+        ):
+
+            base64_qr = (
+                base64_qr
+                or
+                instance_qrcode.get(
+                    "base64"
+                )
+            )
+
+            pairing_code = (
+                pairing_code
+                or
+                instance_qrcode.get(
+                    "pairingCode"
+                )
+            )
+
+            code = (
+                code
+                or
+                instance_qrcode.get(
+                    "code"
+                )
+            )
+
+    return (
+        base64_qr,
+        pairing_code,
+        code
+    )
 
 
 # =================================================================================
 # AUTENTICAÇÃO DO USUÁRIO
 # =================================================================================
 
-def autenticar_usuario(login, senha):
+def autenticar_usuario(
+    login,
+    senha
+):
 
     df = carregar_usuarios()
 
     if df is None or df.empty:
-        return None, "Não foi possível carregar a aba Usuarios."
+
+        return None, (
+            "Não foi possível carregar "
+            "a aba Usuarios."
+        )
 
     c_login = localizar_coluna(
         df,
@@ -560,14 +1178,14 @@ def autenticar_usuario(login, senha):
 
     c_usuario = localizar_coluna(
         df,
-        ["Usuario_ID", "Usuario ID"]
+        [
+            "Usuario_ID",
+            "Usuario ID"
+        ]
     )
 
     # NOVO:
-    # Instância específica do usuário.
-    #
-    # Se essa coluna estiver vazia, o sistema usará
-    # automaticamente a instância da empresa.
+    # WhatsApp individual do usuário.
     c_instancia_usuario = localizar_coluna(
         df,
         [
@@ -589,14 +1207,17 @@ def autenticar_usuario(login, senha):
 
     faltantes = [
         nome
-        for nome, coluna in obrigatorias.items()
+        for nome, coluna
+        in obrigatorias.items()
         if not coluna
     ]
 
     if faltantes:
+
         return None, (
             "A aba Usuarios está incompleta. "
-            f"Colunas ausentes: {', '.join(faltantes)}."
+            f"Colunas ausentes: "
+            f"{', '.join(faltantes)}."
         )
 
     login_normalizado = (
@@ -614,63 +1235,101 @@ def autenticar_usuario(login, senha):
     )
 
     encontrados = df[
-        df["__login"] == login_normalizado
+        df["__login"]
+        == login_normalizado
     ].copy()
 
     if encontrados.empty:
-        return None, "Login ou senha inválidos."
+
+        return None, (
+            "Login ou senha inválidos."
+        )
 
     if len(encontrados) > 1:
+
         return None, (
-            "Este login está duplicado na aba Usuarios. "
+            "Este login está duplicado "
+            "na aba Usuarios. "
             "Procure o suporte."
         )
 
     registro = encontrados.iloc[0]
 
-    if not valor_ativo(registro[c_ativo]):
+    if not valor_ativo(
+        registro[c_ativo]
+    ):
+
         return None, (
-            "Este usuário está inativo no Proposta Inteligente."
+            "Este usuário está inativo "
+            "no Proposta Inteligente."
         )
 
-    if str(senha or "") != str(registro[c_senha] or ""):
-        return None, "Login ou senha inválidos."
+    if (
+        str(senha or "")
+        !=
+        str(registro[c_senha] or "")
+    ):
 
-    # Instância individual do usuário.
+        return None, (
+            "Login ou senha inválidos."
+        )
+
+    # Instância específica do usuário.
     instancia_usuario = ""
 
     if c_instancia_usuario:
-        valor_instancia = registro[c_instancia_usuario]
 
-        if pd.notna(valor_instancia):
+        valor_instancia = (
+            registro[
+                c_instancia_usuario
+            ]
+        )
+
+        if pd.notna(
+            valor_instancia
+        ):
+
             instancia_usuario = (
                 str(valor_instancia)
                 .strip()
             )
 
     return {
+
         "usuario_id": (
-            str(registro[c_usuario]).strip()
+            str(
+                registro[c_usuario]
+            ).strip()
             if c_usuario
             else ""
         ),
 
         "nome": (
-            str(registro[c_nome]).strip()
+            str(
+                registro[c_nome]
+            ).strip()
         ),
 
-        "login": login_normalizado,
+        "login": (
+            login_normalizado
+        ),
 
         "empresa_ref": (
-            str(registro[c_empresa]).strip()
+            str(
+                registro[c_empresa]
+            ).strip()
         ),
 
         "perfil_acesso": (
-            str(registro[c_perfil]).strip()
+            str(
+                registro[c_perfil]
+            ).strip()
         ),
 
-        # NOVO
-        "evolution_instance": instancia_usuario,
+        "evolution_instance": (
+            instancia_usuario
+        ),
+
     }, None
 
 
@@ -678,33 +1337,50 @@ def autenticar_usuario(login, senha):
 # EMPRESA
 # =================================================================================
 
-def obter_empresa(empresa_ref):
+def obter_empresa(
+    empresa_ref
+):
 
     df = carregar_empresas()
 
     if df is None or df.empty:
+
         return None, (
-            "Não foi possível carregar a aba Empresas."
+            "Não foi possível carregar "
+            "a aba Empresas."
         )
 
     c_id = localizar_coluna(
         df,
-        ["Empresa_ID", "Empresa ID"]
+        [
+            "Empresa_ID",
+            "Empresa ID"
+        ]
     )
 
     c_nome = localizar_coluna(
         df,
-        ["Nome_Empresa", "Nome Empresa", "Empresa"]
+        [
+            "Nome_Empresa",
+            "Nome Empresa",
+            "Empresa"
+        ]
     )
 
     c_template = localizar_coluna(
         df,
-        ["Template_ID", "Template ID"]
+        [
+            "Template_ID",
+            "Template ID"
+        ]
     )
 
     c_pasta = localizar_coluna(
         df,
-        ["Pasta_Destino_ID", "Pasta Destino ID"]
+        [
+            "Pasta_Destino_ID",
+            "Pasta Destino ID"
+        ]
     )
 
     c_ativo = localizar_coluna(
@@ -730,9 +1406,11 @@ def obter_empresa(empresa_ref):
     )
 
     if not c_id or not c_nome or not c_ativo:
+
         return None, (
             "A aba Empresas está incompleta. "
-            "São esperadas: Empresa_ID, Nome_Empresa e Ativo."
+            "São esperadas: "
+            "Empresa_ID, Nome_Empresa e Ativo."
         )
 
     referencia = (
@@ -759,57 +1437,83 @@ def obter_empresa(empresa_ref):
 
     encontrados = df[
         (ids == referencia)
-        | (nomes == referencia)
+        |
+        (nomes == referencia)
     ].copy()
 
     if encontrados.empty:
+
         return None, (
             f"A empresa '{empresa_ref}' "
             "não foi encontrada na aba Empresas."
         )
 
     if len(encontrados) > 1:
+
         return None, (
-            f"Existem múltiplas empresas correspondentes "
-            f"a '{empresa_ref}'."
+            f"Existem múltiplas empresas "
+            f"correspondentes a "
+            f"'{empresa_ref}'."
         )
 
     registro = encontrados.iloc[0]
 
-    if not valor_ativo(registro[c_ativo]):
+    if not valor_ativo(
+        registro[c_ativo]
+    ):
+
         return None, (
-            "A empresa vinculada ao usuário está inativa."
+            "A empresa vinculada ao "
+            "usuário está inativa."
         )
 
     # Instância padrão da empresa.
     instancia_empresa = ""
 
     if c_instancia_empresa:
-        valor_instancia = registro[c_instancia_empresa]
 
-        if pd.notna(valor_instancia):
+        valor_instancia = (
+            registro[
+                c_instancia_empresa
+            ]
+        )
+
+        if pd.notna(
+            valor_instancia
+        ):
+
             instancia_empresa = (
-                str(valor_instancia)
-                .strip()
+                str(
+                    valor_instancia
+                ).strip()
             )
 
     return {
+
         "empresa_id": (
-            str(registro[c_id]).strip()
+            str(
+                registro[c_id]
+            ).strip()
         ),
 
         "nome_empresa": (
-            str(registro[c_nome]).strip()
+            str(
+                registro[c_nome]
+            ).strip()
         ),
 
         "template_id": (
-            str(registro[c_template]).strip()
+            str(
+                registro[c_template]
+            ).strip()
             if c_template
             else ""
         ),
 
         "pasta_destino_id": (
-            str(registro[c_pasta]).strip()
+            str(
+                registro[c_pasta]
+            ).strip()
             if c_pasta
             else ""
         ),
@@ -820,8 +1524,9 @@ def obter_empresa(empresa_ref):
             else ""
         ),
 
-        # NOVO
-        "evolution_instance": instancia_empresa,
+        "evolution_instance": (
+            instancia_empresa
+        ),
 
     }, None
 
@@ -833,6 +1538,7 @@ def obter_empresa(empresa_ref):
 def limpar_sessao():
 
     for chave in [
+
         "autenticado",
         "usuario_id",
         "usuario_nome",
@@ -844,11 +1550,12 @@ def limpar_sessao():
         "pasta_destino_id",
         "cota_empresa",
 
-        # NOVOS CAMPOS
         "evolution_instance_usuario",
         "evolution_instance_empresa",
         "evolution_instance",
+
     ]:
+
         st.session_state.pop(
             chave,
             None
@@ -861,7 +1568,6 @@ def limpar_sessao():
 
 def tela_login():
 
-    # Container central do login.
     st.markdown(
         '<div class="login-shell">',
         unsafe_allow_html=True
@@ -877,7 +1583,9 @@ def tela_login():
 
     with header_col:
 
-        if os.path.exists("cabecalho.png"):
+        if os.path.exists(
+            "cabecalho.png"
+        ):
 
             st.image(
                 "cabecalho.png",
@@ -893,7 +1601,8 @@ def tela_login():
 
     st.markdown(
         '<div class="login-subtitle">'
-        'Entre com seu login e senha para acessar o Proposta Inteligente.'
+        'Entre com seu login e senha para '
+        'acessar o Proposta Inteligente.'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -908,7 +1617,9 @@ def tela_login():
 
     with centro:
 
-        with st.form("form_login"):
+        with st.form(
+            "form_login"
+        ):
 
             login = st.text_input(
                 "Login",
@@ -930,7 +1641,9 @@ def tela_login():
     # RODAPÉ
     # --------------------------------------------------------
 
-    if os.path.exists("rodape.png"):
+    if os.path.exists(
+        "rodape.png"
+    ):
 
         st.markdown(
             "<div style='height:22px;'></div>",
@@ -958,9 +1671,11 @@ def tela_login():
 
         else:
 
-            usuario, erro = autenticar_usuario(
-                login,
-                senha
+            usuario, erro = (
+                autenticar_usuario(
+                    login,
+                    senha
+                )
             )
 
             if erro:
@@ -969,13 +1684,19 @@ def tela_login():
 
             else:
 
-                empresa, erro_empresa = obter_empresa(
-                    usuario["empresa_ref"]
+                empresa, erro_empresa = (
+                    obter_empresa(
+                        usuario[
+                            "empresa_ref"
+                        ]
+                    )
                 )
 
                 if erro_empresa:
 
-                    st.error(erro_empresa)
+                    st.error(
+                        erro_empresa
+                    )
 
                 else:
 
@@ -983,79 +1704,114 @@ def tela_login():
                     # IDENTIDADE
                     # ------------------------------------------------
 
-                    st.session_state["autenticado"] = True
+                    st.session_state[
+                        "autenticado"
+                    ] = True
 
-                    st.session_state["usuario_id"] = (
-                        usuario["usuario_id"]
+                    st.session_state[
+                        "usuario_id"
+                    ] = (
+                        usuario[
+                            "usuario_id"
+                        ]
                     )
 
-                    st.session_state["usuario_nome"] = (
-                        usuario["nome"]
+                    st.session_state[
+                        "usuario_nome"
+                    ] = (
+                        usuario[
+                            "nome"
+                        ]
                     )
 
-                    st.session_state["usuario_login"] = (
-                        usuario["login"]
+                    st.session_state[
+                        "usuario_login"
+                    ] = (
+                        usuario[
+                            "login"
+                        ]
                     )
 
-                    st.session_state["empresa_id"] = (
-                        empresa["empresa_id"]
+                    st.session_state[
+                        "empresa_id"
+                    ] = (
+                        empresa[
+                            "empresa_id"
+                        ]
                     )
 
-                    st.session_state["empresa_nome"] = (
-                        empresa["nome_empresa"]
+                    st.session_state[
+                        "empresa_nome"
+                    ] = (
+                        empresa[
+                            "nome_empresa"
+                        ]
                     )
 
-                    st.session_state["perfil_acesso"] = (
-                        usuario["perfil_acesso"]
+                    st.session_state[
+                        "perfil_acesso"
+                    ] = (
+                        usuario[
+                            "perfil_acesso"
+                        ]
                     )
 
-                    st.session_state["template_id"] = (
-                        empresa["template_id"]
+                    st.session_state[
+                        "template_id"
+                    ] = (
+                        empresa[
+                            "template_id"
+                        ]
                     )
 
-                    st.session_state["pasta_destino_id"] = (
-                        empresa["pasta_destino_id"]
+                    st.session_state[
+                        "pasta_destino_id"
+                    ] = (
+                        empresa[
+                            "pasta_destino_id"
+                        ]
                     )
 
-                    st.session_state["cota_empresa"] = (
-                        empresa["cota"]
+                    st.session_state[
+                        "cota_empresa"
+                    ] = (
+                        empresa[
+                            "cota"
+                        ]
                     )
 
                     # =================================================
-                    # NOVA REGRA DE WHATSAPP
-                    # =================================================
-                    #
-                    # Prioridade:
-                    #
-                    # 1. WhatsApp do usuário
-                    # 2. WhatsApp da empresa
-                    #
-                    # Isso suporta:
-                    #
-                    # A) todos usam empresa
-                    # B) todos usam próprio
-                    # C) modelo misto
-                    #
+                    # WHATSAPP
                     # =================================================
 
                     st.session_state[
                         "evolution_instance_usuario"
                     ] = (
-                        usuario["evolution_instance"]
+                        usuario[
+                            "evolution_instance"
+                        ]
                     )
 
                     st.session_state[
                         "evolution_instance_empresa"
                     ] = (
-                        empresa["evolution_instance"]
+                        empresa[
+                            "evolution_instance"
+                        ]
                     )
 
+                    # Prioridade:
+                    # usuário → empresa
                     st.session_state[
                         "evolution_instance"
                     ] = (
-                        usuario["evolution_instance"]
+                        usuario[
+                            "evolution_instance"
+                        ]
                         or
-                        empresa["evolution_instance"]
+                        empresa[
+                            "evolution_instance"
+                        ]
                     )
 
                     st.rerun()
@@ -1069,6 +1825,7 @@ if not st.session_state.get(
     "autenticado",
     False
 ):
+
     tela_login()
     st.stop()
 
@@ -1078,36 +1835,51 @@ if not st.session_state.get(
 # =================================================================================
 
 NOME_USUARIO_LOGADO = (
-    st.session_state["usuario_nome"]
+    st.session_state[
+        "usuario_nome"
+    ]
 )
 
 LOGIN_USUARIO_LOGADO = (
-    st.session_state["usuario_login"]
+    st.session_state[
+        "usuario_login"
+    ]
 )
 
 EMPRESA_ID_LOGADA = (
-    st.session_state["empresa_id"]
+    st.session_state[
+        "empresa_id"
+    ]
 )
 
 NOME_EMPRESA_LOGADA = (
-    st.session_state["empresa_nome"]
+    st.session_state[
+        "empresa_nome"
+    ]
 )
 
 PERFIL_ACESSO_LOGADO = (
-    st.session_state["perfil_acesso"]
+    st.session_state[
+        "perfil_acesso"
+    ]
 )
 
 
 # =================================================================================
-# INSTÂNCIA EFETIVA DO WHATSAPP
+# INSTÂNCIA EFETIVA
 # =================================================================================
 #
-# A prioridade é:
+# Regra:
 #
-# 1. Evolution_Instance do usuário
-# 2. Evolution_Instance da empresa
+# 1. Usuário possui Evolution_Instance?
+#       SIM → usa do usuário
 #
-# O terceiro fallback permite compatibilidade com sessões antigas.
+# 2. Usuário vazio?
+#       usa Evolution_Instance da empresa
+#
+# 3. Ambos vazios?
+#       nenhum WhatsApp configurado
+#
 # =================================================================================
 
 INSTANCE_NAME_LOGADA = (
@@ -1117,18 +1889,14 @@ INSTANCE_NAME_LOGADA = (
         ""
     )
     .strip()
-
     or
-
     st.session_state
     .get(
         "evolution_instance_empresa",
         ""
     )
     .strip()
-
     or
-
     st.session_state
     .get(
         "evolution_instance",
@@ -1160,7 +1928,8 @@ with st.sidebar:
         )
 
     st.markdown(
-        f"#### Olá, **{NOME_USUARIO_LOGADO}**! 👋"
+        f"#### Olá, "
+        f"**{NOME_USUARIO_LOGADO}**! 👋"
     )
 
     st.caption(
@@ -1175,7 +1944,8 @@ with st.sidebar:
     if INSTANCE_NAME_LOGADA:
 
         st.caption(
-            f"WhatsApp: {INSTANCE_NAME_LOGADA}"
+            "WhatsApp: "
+            f"{INSTANCE_NAME_LOGADA}"
         )
 
     else:
@@ -1184,7 +1954,9 @@ with st.sidebar:
             "WhatsApp: não configurado"
         )
 
-    if st.button("↪️ Sair"):
+    if st.button(
+        "↪️ Sair"
+    ):
 
         limpar_sessao()
         st.rerun()
@@ -1203,13 +1975,8 @@ with st.sidebar:
 
 
 # =================================================================================
-# 3. CONTEÚDO PRINCIPAL
+# 3. NOVO ORÇAMENTO
 # =================================================================================
-
-
-# =============================================================================
-# NOVO ORÇAMENTO
-# =============================================================================
 
 if menu == "➕ Novo Orçamento":
 
@@ -1218,18 +1985,21 @@ if menu == "➕ Novo Orçamento":
     )
 
     st.write(
-        "Preencha as informações abaixo para "
-        "estruturar e disparar a proposta comercial."
+        "Preencha as informações abaixo "
+        "para estruturar e disparar a "
+        "proposta comercial."
     )
 
-    # Status da instância efetiva.
-    wa_conectado = (
-        checar_status_whatsapp_rapido(
-            INSTANCE_NAME_LOGADA
-        )
+    # NÃO cria instância aqui.
+    # Apenas verifica o status.
+    estado_wa = obter_estado_instancia(
+        INSTANCE_NAME_LOGADA
     )
 
-    if wa_conectado:
+    if (
+        INSTANCE_NAME_LOGADA
+        and estado_wa["state"] == "open"
+    ):
 
         badge_wa = "🟢 Conectado"
 
@@ -1250,8 +2020,8 @@ if menu == "➕ Novo Orçamento":
             "1. Dados do Cliente"
         )
 
-        col_nome, col_whatsapp = st.columns(
-            2
+        col_nome, col_whatsapp = (
+            st.columns(2)
         )
 
         with col_nome:
@@ -1262,9 +2032,14 @@ if menu == "➕ Novo Orçamento":
 
         with col_whatsapp:
 
-            whatsapp_cliente = st.text_input(
-                f"WhatsApp do Cliente (com DDD) * — {badge_wa}",
-                placeholder="Ex: 5548999999999",
+            whatsapp_cliente = (
+                st.text_input(
+                    f"WhatsApp do Cliente "
+                    f"(com DDD) * — {badge_wa}",
+                    placeholder=(
+                        "Ex: 5548999999999"
+                    ),
+                )
             )
 
         st.subheader(
@@ -1274,7 +2049,8 @@ if menu == "➕ Novo Orçamento":
         resumo_servicos = st.text_area(
             "Resumo dos Serviços *",
             placeholder=(
-                "Ex: Reforma completa de um bar comercial..."
+                "Ex: Reforma completa "
+                "de um bar comercial..."
             )
         )
 
@@ -1283,11 +2059,14 @@ if menu == "➕ Novo Orçamento":
         )
 
         itens_valores = st.text_area(
-            "Itens, Quantidades e Valores da Obra *",
+            "Itens, Quantidades e Valores "
+            "da Obra *",
             placeholder=(
                 "Ex:\n"
-                "- Demolição de paredes | 1 un | R$ 1.500,00\n"
-                "- Pintura geral | 120 m² | R$ 3.500,00"
+                "- Demolição de paredes | "
+                "1 un | R$ 1.500,00\n"
+                "- Pintura geral | "
+                "120 m² | R$ 3.500,00"
             )
         )
 
@@ -1307,15 +2086,17 @@ if menu == "➕ Novo Orçamento":
                 if not WEBAPP_URL:
 
                     st.error(
-                        "Por favor, configure a URL do "
-                        "seu Apps Script Web App no código."
+                        "Por favor, configure "
+                        "a URL do seu Apps Script "
+                        "Web App no código."
                     )
 
                 elif not INSTANCE_NAME_LOGADA:
 
                     st.error(
-                        "Nenhum WhatsApp foi configurado para "
-                        "este usuário ou para a empresa."
+                        "Nenhum WhatsApp foi "
+                        "configurado para este "
+                        "usuário ou para a empresa."
                     )
 
                 else:
@@ -1345,9 +2126,9 @@ if menu == "➕ Novo Orçamento":
                                 ),
 
                                 # =================================================
-                                # IMPORTANTE:
-                                # envia a instância efetiva
+                                # INSTÂNCIA EFETIVA
                                 # =================================================
+
                                 "instance": (
                                     INSTANCE_NAME_LOGADA
                                 ),
@@ -1369,18 +2150,22 @@ if menu == "➕ Novo Orçamento":
 
                             }
 
-                            response = requests.post(
-                                WEBAPP_URL,
-                                json=payload,
-                                timeout=30
+                            response = (
+                                requests.post(
+                                    WEBAPP_URL,
+                                    json=payload,
+                                    timeout=30
+                                )
                             )
 
                             if (
-                                response.status_code == 200
+                                response.status_code
+                                == 200
                                 and
                                 response.json().get(
                                     "status"
-                                ) == "success"
+                                )
+                                == "success"
                             ):
 
                                 st.success(
@@ -1399,19 +2184,21 @@ if menu == "➕ Novo Orçamento":
                         except Exception as e:
 
                             st.error(
-                                f"Falha na comunicação: {e}"
+                                "Falha na comunicação: "
+                                f"{e}"
                             )
 
             else:
 
                 st.error(
-                    "Por favor, preencha todos os campos obrigatórios (*)."
+                    "Por favor, preencha todos "
+                    "os campos obrigatórios (*)."
                 )
 
 
-# =============================================================================
+# =================================================================================
 # PAINEL DE ORÇAMENTOS
-# =============================================================================
+# =================================================================================
 
 elif menu == "📋 Painel de Orçamentos":
 
@@ -1426,7 +2213,9 @@ elif menu == "📋 Painel de Orçamentos":
 
     st.divider()
 
-    df_dados = carregar_dados_planilha()
+    df_dados = (
+        carregar_dados_planilha()
+    )
 
     if (
         df_dados is not None
@@ -1450,9 +2239,11 @@ elif menu == "📋 Painel de Orçamentos":
                 c
                 for c in df_dados.columns
                 if (
-                    "carimbo" in c.lower()
+                    "carimbo"
+                    in c.lower()
                     or
-                    "data" in c.lower()
+                    "data"
+                    in c.lower()
                 )
             ),
             df_dados.columns[0]
@@ -1472,9 +2263,11 @@ elif menu == "📋 Painel de Orçamentos":
                 c
                 for c in df_dados.columns
                 if (
-                    "whatsapp" in c.lower()
+                    "whatsapp"
+                    in c.lower()
                     or
-                    "zap" in c.lower()
+                    "zap"
+                    in c.lower()
                 )
             ),
             df_dados.columns[2]
@@ -1511,7 +2304,8 @@ elif menu == "📋 Painel de Orçamentos":
             (
                 c
                 for c in df_dados.columns
-                if "empresa_id" in c.lower()
+                if "empresa_id"
+                in c.lower()
             ),
             None
         )
@@ -1520,7 +2314,8 @@ elif menu == "📋 Painel de Orçamentos":
             (
                 c
                 for c in df_dados.columns
-                if "vendedor" in c.lower()
+                if "vendedor"
+                in c.lower()
             ),
             None
         )
@@ -1529,7 +2324,8 @@ elif menu == "📋 Painel de Orçamentos":
             (
                 c
                 for c in df_dados.columns
-                if "usuario_id" in c.lower()
+                if "usuario_id"
+                in c.lower()
             ),
             None
         )
@@ -1551,7 +2347,6 @@ elif menu == "📋 Painel de Orçamentos":
             None
         )
 
-        # Compatibilidade com eventuais nomes antigos.
         if col_pdf is None:
 
             col_pdf = next(
@@ -1559,9 +2354,11 @@ elif menu == "📋 Painel de Orçamentos":
                     c
                     for c in df_dados.columns
                     if (
-                        "pdf" in str(c).lower()
+                        "pdf"
+                        in str(c).lower()
                         or
-                        "link" in str(c).lower()
+                        "link"
+                        in str(c).lower()
                     )
                 ),
                 None
@@ -1580,7 +2377,7 @@ elif menu == "📋 Painel de Orçamentos":
         )
 
         # ------------------------------------------------------------------
-        # EMPRESA — SEGURANÇA MULTIEMPRESA
+        # EMPRESA
         # ------------------------------------------------------------------
 
         if col_empresa:
@@ -1594,20 +2391,27 @@ elif menu == "📋 Painel de Orçamentos":
             )
 
             empresa_logada = (
-                str(EMPRESA_ID_LOGADA)
+                str(
+                    EMPRESA_ID_LOGADA
+                )
                 .strip()
                 .lower()
             )
 
-            df_dados = df_dados[
-                empresa_clean == empresa_logada
-            ].copy()
+            df_dados = (
+                df_dados[
+                    empresa_clean
+                    == empresa_logada
+                ]
+                .copy()
+            )
 
         else:
 
             st.warning(
-                "A coluna Empresa_ID ainda não foi encontrada "
-                "em Form_Responses."
+                "A coluna Empresa_ID ainda "
+                "não foi encontrada em "
+                "Form_Responses."
             )
 
         # ------------------------------------------------------------------
@@ -1615,14 +2419,18 @@ elif menu == "📋 Painel de Orçamentos":
         # ------------------------------------------------------------------
 
         perfil_normalizado = (
-            str(PERFIL_ACESSO_LOGADO)
+            str(
+                PERFIL_ACESSO_LOGADO
+            )
             .strip()
             .lower()
         )
 
         if col_vendedor:
 
-            df_dados["Vendedor_Exibicao"] = (
+            df_dados[
+                "Vendedor_Exibicao"
+            ] = (
                 df_dados[col_vendedor]
                 .fillna("")
                 .astype(str)
@@ -1631,29 +2439,43 @@ elif menu == "📋 Painel de Orçamentos":
 
         else:
 
-            df_dados["Vendedor_Exibicao"] = ""
+            df_dados[
+                "Vendedor_Exibicao"
+            ] = ""
 
-        # Administrador vê todos.
-        # Usuário normal vê somente os próprios.
-        if perfil_normalizado != "administrador":
+        if (
+            perfil_normalizado
+            != "administrador"
+        ):
 
             vendedor_logado = (
-                str(NOME_USUARIO_LOGADO)
+                str(
+                    NOME_USUARIO_LOGADO
+                )
                 .strip()
                 .lower()
             )
 
-            df_dados = df_dados[
-                df_dados["Vendedor_Exibicao"]
-                .str.lower()
-                .eq(vendedor_logado)
-            ].copy()
+            df_dados = (
+                df_dados[
+                    df_dados[
+                        "Vendedor_Exibicao"
+                    ]
+                    .str.lower()
+                    .eq(
+                        vendedor_logado
+                    )
+                ]
+                .copy()
+            )
 
         # ------------------------------------------------------------------
         # STATUS
         # ------------------------------------------------------------------
 
-        df_dados["Status_Clean"] = (
+        df_dados[
+            "Status_Clean"
+        ] = (
             df_dados[col_status]
             .fillna("")
             .astype(str)
@@ -1661,26 +2483,32 @@ elif menu == "📋 Painel de Orçamentos":
             .str.lower()
         )
 
-        # Só concluídos entram nos KPIs.
-        df_base = df_dados[
-            df_dados["Status_Clean"].isin(
-                [
-                    "concluído",
-                    "concluido"
+        df_base = (
+            df_dados[
+                df_dados[
+                    "Status_Clean"
                 ]
-            )
-        ].copy()
+                .isin(
+                    [
+                        "concluído",
+                        "concluido"
+                    ]
+                )
+            ]
+            .copy()
+        )
 
         if df_base.empty:
 
             st.info(
-                "Nenhum orçamento concluído encontrado para este acesso."
+                "Nenhum orçamento concluído "
+                "encontrado para este acesso."
             )
 
         else:
 
             # ------------------------------------------------------------------
-            # VALOR TOTAL — COLUNA K
+            # VALOR TOTAL
             # ------------------------------------------------------------------
 
             col_valor = next(
@@ -1688,7 +2516,9 @@ elif menu == "📋 Painel de Orçamentos":
                     c
                     for c in df_base.columns
                     if (
-                        str(c).strip().lower()
+                        str(c)
+                        .strip()
+                        .lower()
                         in {
                             "valor_total",
                             "valor total",
@@ -1697,7 +2527,9 @@ elif menu == "📋 Painel de Orçamentos":
                         }
                         or
                         "valor_total"
-                        in str(c).strip().lower()
+                        in str(c)
+                        .strip()
+                        .lower()
                     )
                 ),
                 None
@@ -1706,22 +2538,30 @@ elif menu == "📋 Painel de Orçamentos":
             if col_valor is None:
 
                 st.warning(
-                    "A coluna Valor_Total (K) ainda não foi encontrada "
+                    "A coluna Valor_Total (K) "
+                    "ainda não foi encontrada "
                     "em Form_Responses."
                 )
 
-                df_base["Valor_Total"] = 0.0
+                df_base[
+                    "Valor_Total"
+                ] = 0.0
 
             else:
 
-                def parse_valor_brasileiro(valor):
+                def parse_valor_brasileiro(
+                    valor
+                ):
 
                     texto = (
-                        str(valor or "")
+                        str(
+                            valor or ""
+                        )
                         .strip()
                     )
 
                     if not texto:
+
                         return 0.0
 
                     texto = re.sub(
@@ -1731,6 +2571,7 @@ elif menu == "📋 Painel de Orçamentos":
                     )
 
                     if not texto:
+
                         return 0.0
 
                     if (
@@ -1740,25 +2581,39 @@ elif menu == "📋 Painel de Orçamentos":
                         in texto
                     ):
 
-                        if texto.rfind(",") > texto.rfind("."):
+                        if (
+                            texto.rfind(",")
+                            >
+                            texto.rfind(".")
+                        ):
 
                             texto = (
                                 texto
-                                .replace(".", "")
-                                .replace(",", ".")
+                                .replace(
+                                    ".",
+                                    ""
+                                )
+                                .replace(
+                                    ",",
+                                    "."
+                                )
                             )
 
                         else:
 
                             texto = (
                                 texto
-                                .replace(",", "")
+                                .replace(
+                                    ",",
+                                    ""
+                                )
                             )
 
                     elif "," in texto:
 
                         texto = (
-                            texto.replace(
+                            texto
+                            .replace(
                                 ",",
                                 "."
                             )
@@ -1766,7 +2621,9 @@ elif menu == "📋 Painel de Orçamentos":
 
                     try:
 
-                        return float(texto)
+                        return float(
+                            texto
+                        )
 
                     except (
                         ValueError,
@@ -1775,8 +2632,12 @@ elif menu == "📋 Painel de Orçamentos":
 
                         return 0.0
 
-                df_base["Valor_Total"] = (
-                    df_base[col_valor]
+                df_base[
+                    "Valor_Total"
+                ] = (
+                    df_base[
+                        col_valor
+                    ]
                     .apply(
                         parse_valor_brasileiro
                     )
@@ -1790,10 +2651,12 @@ elif menu == "📋 Painel de Orçamentos":
                 "🔎 Filtros"
             )
 
-            col_filtro1, col_filtro2, col_filtro3 = (
-                st.columns(
-                    [1, 1, 1]
-                )
+            (
+                col_filtro1,
+                col_filtro2,
+                col_filtro3
+            ) = st.columns(
+                [1, 1, 1]
             )
 
             with col_filtro1:
@@ -1814,11 +2677,15 @@ elif menu == "📋 Painel de Orçamentos":
             with col_filtro2:
 
                 data_min = (
-                    df_base["Data_Parsed"].min()
+                    df_base[
+                        "Data_Parsed"
+                    ].min()
                 )
 
                 data_max = (
-                    df_base["Data_Parsed"].max()
+                    df_base[
+                        "Data_Parsed"
+                    ].max()
                 )
 
                 if (
@@ -1827,15 +2694,22 @@ elif menu == "📋 Painel de Orçamentos":
                     pd.isna(data_max)
                 ):
 
-                    data_min = pd.Timestamp.now()
-                    data_max = pd.Timestamp.now()
+                    data_min = (
+                        pd.Timestamp.now()
+                    )
 
-                intervalo_datas = st.date_input(
-                    "Intervalo",
-                    value=(
-                        data_min.date(),
-                        data_max.date(),
-                    ),
+                    data_max = (
+                        pd.Timestamp.now()
+                    )
+
+                intervalo_datas = (
+                    st.date_input(
+                        "Intervalo",
+                        value=(
+                            data_min.date(),
+                            data_max.date(),
+                        ),
+                    )
                 )
 
             with col_filtro3:
@@ -1867,41 +2741,62 @@ elif menu == "📋 Painel de Orçamentos":
                     vendedor_filtro = (
                         st.selectbox(
                             "Vendedor",
-                            ["Todos"] + vendedores,
+                            [
+                                "Todos"
+                            ]
+                            + vendedores,
                             index=0,
                         )
                     )
 
                 else:
 
-                    vendedor_filtro = "Todos"
+                    vendedor_filtro = (
+                        "Todos"
+                    )
 
-            agora = pd.Timestamp.now()
+            agora = (
+                pd.Timestamp.now()
+            )
 
-            if len(intervalo_datas) == 2:
+            if len(
+                intervalo_datas
+            ) == 2:
 
-                inicio_custom = pd.Timestamp(
-                    intervalo_datas[0]
+                inicio_custom = (
+                    pd.Timestamp(
+                        intervalo_datas[0]
+                    )
                 )
 
                 fim_custom = (
                     pd.Timestamp(
                         intervalo_datas[1]
                     )
-                    + pd.Timedelta(days=1)
-                    - pd.Timedelta(seconds=1)
+                    + pd.Timedelta(
+                        days=1
+                    )
+                    - pd.Timedelta(
+                        seconds=1
+                    )
                 )
 
             else:
 
-                inicio_custom = pd.Timestamp(
-                    intervalo_datas[0]
+                inicio_custom = (
+                    pd.Timestamp(
+                        intervalo_datas[0]
+                    )
                 )
 
                 fim_custom = (
                     inicio_custom
-                    + pd.Timedelta(days=1)
-                    - pd.Timedelta(seconds=1)
+                    + pd.Timedelta(
+                        days=1
+                    )
+                    - pd.Timedelta(
+                        seconds=1
+                    )
                 )
 
             if periodo == "Hoje":
@@ -1912,15 +2807,21 @@ elif menu == "📋 Painel de Orçamentos":
 
                 fim_periodo = (
                     inicio_periodo
-                    + pd.Timedelta(days=1)
-                    - pd.Timedelta(seconds=1)
+                    + pd.Timedelta(
+                        days=1
+                    )
+                    - pd.Timedelta(
+                        seconds=1
+                    )
                 )
 
             elif periodo == "Últimos 7 dias":
 
                 inicio_periodo = (
                     agora.normalize()
-                    - pd.Timedelta(days=6)
+                    - pd.Timedelta(
+                        days=6
+                    )
                 )
 
                 fim_periodo = agora
@@ -1929,17 +2830,21 @@ elif menu == "📋 Painel de Orçamentos":
 
                 inicio_periodo = (
                     agora.normalize()
-                    - pd.Timedelta(days=29)
+                    - pd.Timedelta(
+                        days=29
+                    )
                 )
 
                 fim_periodo = agora
 
             elif periodo == "Este ano":
 
-                inicio_periodo = pd.Timestamp(
-                    year=agora.year,
-                    month=1,
-                    day=1
+                inicio_periodo = (
+                    pd.Timestamp(
+                        year=agora.year,
+                        month=1,
+                        day=1
+                    )
                 )
 
                 fim_periodo = agora
@@ -1947,26 +2852,29 @@ elif menu == "📋 Painel de Orçamentos":
             elif periodo == "Todo o período":
 
                 inicio_periodo = (
-                    df_base["Data_Parsed"].min()
+                    df_base[
+                        "Data_Parsed"
+                    ].min()
                 )
 
                 fim_periodo = (
-                    df_base["Data_Parsed"].max()
+                    df_base[
+                        "Data_Parsed"
+                    ].max()
                 )
 
             else:
 
-                # Este mês
-
-                inicio_periodo = pd.Timestamp(
-                    year=agora.year,
-                    month=agora.month,
-                    day=1
+                inicio_periodo = (
+                    pd.Timestamp(
+                        year=agora.year,
+                        month=agora.month,
+                        day=1
+                    )
                 )
 
                 fim_periodo = agora
 
-            # Intervalo manual como refinamento.
             inicio_final = max(
                 inicio_periodo,
                 inicio_custom
@@ -1977,32 +2885,43 @@ elif menu == "📋 Painel de Orçamentos":
                 fim_custom
             )
 
-            df_filtrado = df_base[
-                (
-                    df_base["Data_Parsed"]
-                    >= inicio_final
-                )
-                &
-                (
-                    df_base["Data_Parsed"]
-                    <= fim_final
-                )
-            ].copy()
+            df_filtrado = (
+                df_base[
+                    (
+                        df_base[
+                            "Data_Parsed"
+                        ]
+                        >= inicio_final
+                    )
+                    &
+                    (
+                        df_base[
+                            "Data_Parsed"
+                        ]
+                        <= fim_final
+                    )
+                ]
+                .copy()
+            )
 
             if (
                 perfil_normalizado
                 == "administrador"
                 and
-                vendedor_filtro != "Todos"
+                vendedor_filtro
+                != "Todos"
             ):
 
-                df_filtrado = df_filtrado[
+                df_filtrado = (
                     df_filtrado[
-                        "Vendedor_Exibicao"
-                    ].eq(
-                        vendedor_filtro
-                    )
-                ].copy()
+                        df_filtrado[
+                            "Vendedor_Exibicao"
+                        ].eq(
+                            vendedor_filtro
+                        )
+                    ]
+                    .copy()
+                )
 
             # ------------------------------------------------------------------
             # KPIs
@@ -2019,7 +2938,8 @@ elif menu == "📋 Painel de Orçamentos":
             )
 
             ticket_medio = (
-                valor_total / qtd_orcamentos
+                valor_total
+                / qtd_orcamentos
                 if qtd_orcamentos
                 else 0.0
             )
@@ -2036,18 +2956,32 @@ elif menu == "📋 Painel de Orçamentos":
                 .nunique()
             )
 
-            def moeda_br(valor):
+            def moeda_br(
+                valor
+            ):
 
                 return (
                     f"R$ {valor:,.2f}"
-                    .replace(",", "X")
-                    .replace(".", ",")
-                    .replace("X", ".")
+                    .replace(
+                        ",",
+                        "X"
+                    )
+                    .replace(
+                        ".",
+                        ","
+                    )
+                    .replace(
+                        "X",
+                        "."
+                    )
                 )
 
-            kpi1, kpi2, kpi3, kpi4 = (
-                st.columns(4)
-            )
+            (
+                kpi1,
+                kpi2,
+                kpi3,
+                kpi4
+            ) = st.columns(4)
 
             with kpi1:
 
@@ -2096,7 +3030,7 @@ elif menu == "📋 Painel de Orçamentos":
             st.markdown("---")
 
             # ------------------------------------------------------------------
-            # GRÁFICO 1 — EVOLUÇÃO MENSAL POR VALOR
+            # GRÁFICO 1 — EVOLUÇÃO MENSAL
             # ------------------------------------------------------------------
 
             st.subheader(
@@ -2140,25 +3074,33 @@ elif menu == "📋 Painel de Orçamentos":
                     )
                 )
 
-                mensal["Mes_Label"] = (
+                mensal[
+                    "Mes_Label"
+                ] = (
                     mensal[
                         "Mes"
-                    ].dt.strftime(
+                    ]
+                    .dt.strftime(
                         "%m/%Y"
                     )
                 )
 
-                mensal["Valor_Label"] = (
+                mensal[
+                    "Valor_Label"
+                ] = (
                     mensal[
                         "Valor_Total"
                     ]
-                    .apply(moeda_br)
+                    .apply(
+                        moeda_br
+                    )
                 )
 
                 ordem_meses = (
                     mensal[
                         "Mes_Label"
-                    ].tolist()
+                    ]
+                    .tolist()
                 )
 
                 chart_evolucao_spec = {
@@ -2291,7 +3233,6 @@ elif menu == "📋 Painel de Orçamentos":
                                 "Valor_Total",
                                 "size"
                             ),
-
                             Valor_Total=(
                                 "Valor_Total",
                                 "sum"
@@ -2312,7 +3253,9 @@ elif menu == "📋 Painel de Orçamentos":
                         )
                     )
 
-                    por_vendedor["Valor_Label"] = (
+                    por_vendedor[
+                        "Valor_Label"
+                    ] = (
                         por_vendedor[
                             "Valor_Total"
                         ]
@@ -2328,9 +3271,10 @@ elif menu == "📋 Painel de Orçamentos":
                         .tolist()
                     )
 
-                    col_chart1, col_chart2 = (
-                        st.columns(2)
-                    )
+                    (
+                        col_chart1,
+                        col_chart2
+                    ) = st.columns(2)
 
                     with col_chart1:
 
@@ -2555,7 +3499,9 @@ elif menu == "📋 Painel de Orçamentos":
                 "📋 Histórico de Orçamentos"
             )
 
-            df_exibir = pd.DataFrame()
+            df_exibir = (
+                pd.DataFrame()
+            )
 
             df_exibir[
                 "Data do Envio"
@@ -2651,10 +3597,12 @@ elif menu == "📋 Painel de Orçamentos":
                     st.column_config.LinkColumn(
                         "Proposta (PDF)",
                         help=(
-                            "Clique para abrir o "
-                            "PDF da proposta."
+                            "Clique para abrir "
+                            "o PDF da proposta."
                         ),
-                        display_text="📥 Abrir PDF",
+                        display_text=(
+                            "📥 Abrir PDF"
+                        ),
                         validate=(
                             "^https?://.*$"
                         )
@@ -2679,7 +3627,10 @@ elif menu == "📋 Painel de Orçamentos":
 
             for col in df_exibir.columns:
 
-                if col != "Proposta (PDF)":
+                if (
+                    col
+                    != "Proposta (PDF)"
+                ):
 
                     df_exibir[col] = (
                         df_exibir[col]
@@ -2697,19 +3648,22 @@ elif menu == "📋 Painel de Orçamentos":
                 df_exibir,
                 use_container_width=True,
                 hide_index=True,
-                column_config=config_colunas
+                column_config=(
+                    config_colunas
+                )
             )
 
     else:
 
         st.info(
-            "Nenhum dado encontrado na planilha."
+            "Nenhum dado encontrado "
+            "na planilha."
         )
 
 
-# =============================================================================
+# =================================================================================
 # CONECTAR WHATSAPP
-# =============================================================================
+# =================================================================================
 
 elif menu == "📱 Conectar WhatsApp":
 
@@ -2724,53 +3678,33 @@ elif menu == "📱 Conectar WhatsApp":
 
     st.divider()
 
-    col_btn, col_status = st.columns(
-        [1, 2]
-    )
-
-    with col_btn:
-
-        verificar = st.button(
-            "🔄 Verificar Status / Gerar QR Code"
-        )
-
-    # =================================================================
-    # NENHUMA INSTÂNCIA
-    # =================================================================
-
     if not INSTANCE_NAME_LOGADA:
 
         st.warning(
-            "⚠️ Nenhuma instância de WhatsApp foi "
-            "configurada para este usuário nem para a empresa."
+            "⚠️ Nenhuma instância de WhatsApp "
+            "foi configurada para este usuário "
+            "nem para a empresa."
         )
 
         st.info(
-            "Para conectar um WhatsApp, preencha "
-            "Evolution_Instance em Usuarios para um "
-            "número individual ou em Empresas para o "
-            "número compartilhado."
+            "Preencha Evolution_Instance em "
+            "Usuarios para um WhatsApp individual "
+            "ou em Empresas para o WhatsApp "
+            "compartilhado."
         )
 
-    # =================================================================
-    # EVOLUTION API NÃO CONFIGURADA
-    # =================================================================
-
-    elif not EVOLUTION_API_URL or not API_KEY:
+    elif not evolution_configurada():
 
         st.error(
-            "A configuração da Evolution API não foi "
-            "encontrada nos Secrets do Streamlit."
+            "A configuração da Evolution API "
+            "não foi encontrada nos Secrets "
+            "do Streamlit."
         )
 
         st.info(
-            "Verifique se existe a seção [evolution] "
-            "com api_url e api_key nos Secrets deste app."
+            "Verifique se existe a seção "
+            "[evolution] com api_url e api_key."
         )
-
-    # =================================================================
-    # INSTÂNCIA EXISTENTE
-    # =================================================================
 
     else:
 
@@ -2779,138 +3713,323 @@ elif menu == "📱 Conectar WhatsApp":
             f"**{INSTANCE_NAME_LOGADA}**"
         )
 
-        try:
+        st.markdown("")
 
-            url_state = (
-                f"{EVOLUTION_API_URL}"
-                f"/instance/connectionState/"
-                f"{INSTANCE_NAME_LOGADA}"
+        col_btn, col_status = (
+            st.columns([1, 2])
+        )
+
+        with col_btn:
+
+            verificar = st.button(
+                "🔄 Verificar Status / Gerar QR Code"
             )
 
-            headers = {
-                "apikey": API_KEY
-            }
+        # ================================================================
+        # PREPARAÇÃO AUTOMÁTICA
+        # ================================================================
+        #
+        # Mesmo sem clicar no botão, a página
+        # já tenta preparar a instância.
+        #
+        # O botão serve para atualizar/refazer
+        # o processo.
+        #
+        # ================================================================
 
-            res_state = requests.get(
-                url_state,
-                headers=headers,
-                timeout=5
+        with st.spinner(
+            "Verificando WhatsApp..."
+        ):
+
+            preparo = (
+                preparar_instancia_para_conexao(
+                    INSTANCE_NAME_LOGADA
+                )
             )
 
-            if res_state.status_code == 200:
+        if not preparo["ok"]:
 
-                state_data = (
-                    res_state.json()
+            st.error(
+                "Não foi possível preparar "
+                "a instância do WhatsApp."
+            )
+
+            if preparo.get(
+                "mensagem"
+            ):
+
+                st.info(
+                    preparo[
+                        "mensagem"
+                    ]
                 )
 
-                status_atual = (
-                    state_data
-                    .get("instance", {})
-                    .get(
-                        "state",
-                        "disconnected"
-                    )
+        else:
+
+            if preparo.get(
+                "criada_agora"
+            ):
+
+                st.success(
+                    "✅ Instância criada "
+                    "automaticamente na "
+                    "Evolution API."
                 )
 
-                # =================================================
-                # CONECTADO
-                # =================================================
+            # ============================================================
+            # PRIMEIRO:
+            # tenta usar QR retornado pela criação
+            # ============================================================
 
-                if status_atual == "open":
+            base64_qr = None
+            pairing_code = None
+            code = None
 
-                    st.success(
-                        "🟢 **WhatsApp Conectado e Operacional!**"
-                    )
+            criacao = (
+                preparo.get(
+                    "criacao"
+                )
+            )
 
-                    st.info(
-                        "Sua instância está pronta para "
-                        "enviar as propostas automaticamente "
-                        "aos clientes."
-                    )
+            if criacao:
 
-                # =================================================
-                # DESCONECTADO
-                # =================================================
-
-                else:
-
-                    st.error(
-                        "🔴 **WhatsApp Desconectado**"
-                    )
-
-                    st.warning(
-                        "Abra o WhatsApp no seu celular, "
-                        "vá em 'Aparelhos Conectados' e "
-                        "escaneie o QR Code abaixo:"
-                    )
-
-                    url_qr = (
-                        f"{EVOLUTION_API_URL}"
-                        f"/instance/connect/"
-                        f"{INSTANCE_NAME_LOGADA}"
-                    )
-
-                    res_qr = requests.get(
-                        url_qr,
-                        headers=headers,
-                        timeout=5
-                    )
-
-                    if res_qr.status_code == 200:
-
-                        qr_data = (
-                            res_qr.json()
+                (
+                    base64_qr,
+                    pairing_code,
+                    code
+                ) = (
+                    extrair_qr_da_resposta(
+                        criacao.get(
+                            "data",
+                            {}
                         )
+                    )
+                )
+
+            # ============================================================
+            # DEPOIS:
+            # consulta o estado atual
+            # ============================================================
+
+            estado = obter_estado_instancia(
+                INSTANCE_NAME_LOGADA
+            )
+
+            # ============================================================
+            # CONECTADO
+            # ============================================================
+
+            if (
+                estado["state"]
+                == "open"
+            ):
+
+                st.success(
+                    "🟢 **WhatsApp Conectado "
+                    "e Operacional!**"
+                )
+
+                st.info(
+                    "Sua instância está pronta "
+                    "para enviar as propostas "
+                    "automaticamente aos clientes."
+                )
+
+            # ============================================================
+            # NÃO CONECTADO
+            # ============================================================
+
+            else:
+
+                # Se ainda não temos QR,
+                # solicitamos via endpoint connect.
+                if not base64_qr:
+
+                    with st.spinner(
+                        "Preparando QR Code..."
+                    ):
+
+                        qr_resultado = (
+                            obter_qr_code_evolution(
+                                INSTANCE_NAME_LOGADA
+                            )
+                        )
+
+                    if qr_resultado[
+                        "ok"
+                    ]:
 
                         base64_qr = (
-                            qr_data.get("base64")
-                            or
-                            qr_data.get("code")
+                            qr_resultado[
+                                "base64"
+                            ]
                         )
 
-                        if base64_qr:
+                        pairing_code = (
+                            qr_resultado[
+                                "pairing_code"
+                            ]
+                        )
 
-                            if "," in base64_qr:
+                        code = (
+                            qr_resultado[
+                                "code"
+                            ]
+                        )
 
-                                base64_qr = (
-                                    base64_qr.split(
-                                        ","
-                                    )[1]
+                    else:
+
+                        # Tenta mais uma vez
+                        # somente se a instância
+                        # acabou de ser criada.
+                        if (
+                            preparo.get(
+                                "criada_agora"
+                            )
+                        ):
+
+                            qr_resultado = (
+                                obter_qr_code_evolution(
+                                    INSTANCE_NAME_LOGADA
                                 )
-
-                            st.image(
-                                base64.b64decode(
-                                    base64_qr
-                                ),
-                                width=280
                             )
 
-                        else:
+                            if qr_resultado[
+                                "ok"
+                            ]:
 
-                            st.info(
-                                "Aguardando geração "
-                                "do QR Code..."
+                                base64_qr = (
+                                    qr_resultado[
+                                        "base64"
+                                    ]
+                                )
+
+                                pairing_code = (
+                                    qr_resultado[
+                                        "pairing_code"
+                                    ]
+                                )
+
+                                code = (
+                                    qr_resultado[
+                                        "code"
+                                    ]
+                                )
+
+                # ========================================================
+                # MOSTRA QR
+                # ========================================================
+
+                if base64_qr:
+
+                    st.warning(
+                        "🟡 **WhatsApp aguardando "
+                        "pareamento**"
+                    )
+
+                    st.write(
+                        "Abra o WhatsApp no celular "
+                        "que será conectado, entre em "
+                        "**Aparelhos Conectados** e "
+                        "escaneie o QR Code abaixo."
+                    )
+
+                    qr_bytes = (
+                        obter_qr_bytes(
+                            base64_qr
+                        )
+                    )
+
+                    if qr_bytes:
+
+                        col_qr1, col_qr2, col_qr3 = (
+                            st.columns(
+                                [1, 1, 1]
+                            )
+                        )
+
+                        with col_qr2:
+
+                            st.image(
+                                qr_bytes,
+                                width=300
                             )
 
                     else:
 
                         st.error(
-                            "Não foi possível gerar "
-                            "o QR Code. "
-                            f"Status Code: "
-                            f"{res_qr.status_code}"
+                            "A Evolution API "
+                            "retornou um QR Code, "
+                            "mas não foi possível "
+                            "decodificar a imagem."
                         )
 
-            else:
+                    if pairing_code:
 
-                st.error(
-                    "Erro ao consultar a Evolution API. "
-                    f"Status Code: {res_state.status_code}"
+                        st.caption(
+                            "Código de pareamento: "
+                            f"**{pairing_code}**"
+                        )
+
+                else:
+
+                    st.warning(
+                        "A instância existe, "
+                        "mas a Evolution API "
+                        "ainda não retornou "
+                        "um QR Code."
+                    )
+
+                    if code:
+
+                        st.caption(
+                            f"Código retornado pela "
+                            f"Evolution API: **{code}**"
+                        )
+
+                    st.info(
+                        "Clique novamente em "
+                        "**Verificar Status / "
+                        "Gerar QR Code**."
+                    )
+
+                    # Mostra eventual erro técnico
+                    # somente para diagnóstico.
+                    if (
+                        'qr_resultado'
+                        in locals()
+                        and
+                        not qr_resultado.get(
+                            "ok",
+                            False
+                        )
+                    ):
+
+                        status_qr = (
+                            qr_resultado.get(
+                                "status_code"
+                            )
+                        )
+
+                        if status_qr:
+
+                            st.caption(
+                                "Status da API ao "
+                                "solicitar QR: "
+                                f"{status_qr}"
+                            )
+
+            # ============================================================
+            # DEBUG CONTROLADO
+            # ============================================================
+
+            if (
+                verificar
+                and
+                preparo["ok"]
+            ):
+
+                st.toast(
+                    "Status atualizado.",
+                    icon="✅"
                 )
-
-        except Exception as e:
-
-            st.error(
-                "Falha de conexão com o servidor "
-                f"da Evolution API: {e}"
-            )
