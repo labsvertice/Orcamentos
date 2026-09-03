@@ -78,23 +78,22 @@ st.markdown(
         background-color: var(--brand-bg) !important;
     }
 
+    /* Mantém o cabeçalho nativo do Streamlit para preservar
+       os controles de abrir/fechar a barra lateral, inclusive no celular. */
     header[data-testid="stHeader"] {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
-    
-    header[data-testid="stHeader"] [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    
+
+    /* Oculta apenas a decoração superior, sem remover o controle da sidebar. */
     header[data-testid="stHeader"] [data-testid="stDecoration"] {
         display: none !important;
     }
 
     .main .block-container,
     [data-testid="stMainBlockContainer"] {
-        padding-top: 2.2rem !important;
+        padding-top: 1.2rem !important;
         padding-bottom: 2.5rem !important;
     }
 
