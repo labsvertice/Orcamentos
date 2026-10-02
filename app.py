@@ -788,6 +788,95 @@ def checar_whatsapp_em_tempo_real(
 # CRIAÇÃO AUTOMÁTICA DE INSTÂNCIA
 # =================================================================================
 
+def obter_numero_instancia_evolution(instance_name):
+    """
+    Obtém automaticamente o número já associado à instância na Evolution API.
+
+    O número não é solicitado ao usuário na interface.
+    Ele é usado apenas internamente para solicitar o pairingCode quando
+    a própria Evolution API já possui esse número cadastrado na instância.
+    """
+
+    if not instance_name or not evolution_configurada():
+        return None
+
+    try:
+        url = (
+            f"{EVOLUTION_API_URL}"
+            "/instance/fetchInstances"
+        )
+
+        response = requests.get(
+            url,
+            headers=evolution_headers(),
+            params={"instanceName": instance_name},
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            return None
+
+        try:
+            data = response.json()
+        except Exception:
+            return None
+
+        if isinstance(data, dict):
+            if isinstance(data.get("instances"), list):
+                lista = data["instances"]
+            elif isinstance(data.get("data"), list):
+                lista = data["data"]
+            elif isinstance(data.get("instance"), dict):
+                lista = [data["instance"]]
+            else:
+                lista = [data]
+        elif isinstance(data, list):
+            lista = data
+        else:
+            lista = []
+
+        for item in lista:
+            if not isinstance(item, dict):
+                continue
+
+            nome = (
+                item.get("name")
+                or item.get("instanceName")
+                or item.get("instance", {}).get("instanceName")
+                if isinstance(item.get("instance"), dict)
+                else item.get("name") or item.get("instanceName")
+            )
+
+            if nome and str(nome).strip() != str(instance_name).strip():
+                continue
+
+            numero = (
+                item.get("number")
+                or item.get("ownerJid")
+                or item.get("wuid")
+                or item.get("jid")
+            )
+
+            if not numero and isinstance(item.get("instance"), dict):
+                instancia = item["instance"]
+                numero = (
+                    instancia.get("number")
+                    or instancia.get("ownerJid")
+                    or instancia.get("wuid")
+                    or instancia.get("jid")
+                )
+
+            if numero:
+                numero = re.sub(r"\D", "", str(numero))
+                if numero:
+                    return numero
+
+        return None
+
+    except Exception:
+        return None
+
+
 def criar_instancia_evolution(
     instance_name,
     numero_whatsapp=None
@@ -4062,24 +4151,9 @@ elif menu == "📱 Conectar WhatsApp":
 
         st.markdown("")
 
-        numero_whatsapp = st.text_input(
-            "Número do WhatsApp que será conectado",
-            placeholder="Ex: 5548999999999",
-            help=(
-                "Informe o número completo com código do país e DDD, "
-                "somente números. Ex.: 5548999999999"
-            ),
-        )
-
-        numero_whatsapp = re.sub(
-            r"\D",
-            "",
-            str(numero_whatsapp or ""),
-        )
-
         st.caption(
-            "O número é necessário para gerar o código de conexão. "
-            "O QR Code continua disponível normalmente."
+            "O código de conexão é obtido automaticamente quando a "
+            "Evolution API já possui o número associado à instância."
         )
 
         col_btn, col_status = (
@@ -4102,8 +4176,7 @@ elif menu == "📱 Conectar WhatsApp":
 
             preparo = (
                 preparar_instancia_para_conexao(
-                    INSTANCE_NAME_LOGADA,
-                    numero_whatsapp
+                    INSTANCE_NAME_LOGADA
                 )
             )
 
@@ -4205,10 +4278,16 @@ elif menu == "📱 Conectar WhatsApp":
                         "Preparando QR Code..."
                     ):
 
+                        numero_instancia = (
+                            obter_numero_instancia_evolution(
+                                INSTANCE_NAME_LOGADA
+                            )
+                        )
+
                         qr_resultado = (
                             obter_qr_code_evolution(
                                 INSTANCE_NAME_LOGADA,
-                                numero_whatsapp
+                                numero_instancia
                             )
                         )
 
