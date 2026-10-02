@@ -170,7 +170,7 @@ def ler_aba_sheets(nome_aba):
             .values()
             .get(
                 spreadsheetId=SPREADSHEET_ID,
-                range=f"'{nome_aba}'",
+                range=f"{nome_aba}!A:Z",
             )
             .execute()
         )
@@ -1087,7 +1087,6 @@ elif menu == "📋 Painel de Orçamentos":
             )
 
             df_exibir["Cliente"] = df_filtrado[col_nome]
-            df_exibir["Vendedor"] = df_filtrado["Vendedor_Exibicao"]
             df_exibir["WhatsApp"] = df_filtrado[col_whats]
             df_exibir["Resumo do Serviço"] = df_filtrado[col_resumo]
 
@@ -1104,9 +1103,6 @@ elif menu == "📋 Painel de Orçamentos":
                 ),
                 "Cliente": st.column_config.TextColumn(
                     "Cliente"
-                ),
-                "Vendedor": st.column_config.TextColumn(
-                    "Vendedor"
                 ),
                 "WhatsApp": st.column_config.TextColumn(
                     "WhatsApp"
