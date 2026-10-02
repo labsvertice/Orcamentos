@@ -1,10 +1,12 @@
 import base64
+import json
 import os
 import re
 
 import pandas as pd
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -787,7 +789,8 @@ def checar_whatsapp_em_tempo_real(
 # =================================================================================
 
 def criar_instancia_evolution(
-    instance_name
+    instance_name,
+    numero_whatsapp=None
 ):
     """
     Cria automaticamente uma instância na Evolution API.
@@ -828,6 +831,9 @@ def criar_instancia_evolution(
             "qrcode": True,
             "integration": "WHATSAPP-BAILEYS",
         }
+
+        if numero_whatsapp:
+            payload["number"] = numero_whatsapp
 
         response = requests.post(
             url,
@@ -904,7 +910,8 @@ def criar_instancia_evolution(
 
 
 def obter_qr_code_evolution(
-    instance_name
+    instance_name,
+    numero_whatsapp=None
 ):
     """
     Solicita o QR Code da instância.
@@ -947,9 +954,15 @@ def obter_qr_code_evolution(
             f"{instance_name}"
         )
 
+        params = {}
+
+        if numero_whatsapp:
+            params["number"] = numero_whatsapp
+
         response = requests.get(
             url,
             headers=evolution_headers(),
+            params=params,
             timeout=10,
         )
 
@@ -960,18 +973,12 @@ def obter_qr_code_evolution(
 
         if response.status_code == 200:
 
-            base64_qr = (
-                data.get("base64")
-                or data.get("qrcode")
-                or data.get("qrCode")
-            )
-
-            pairing_code = data.get(
-                "pairingCode"
-            )
-
-            code = data.get(
-                "code"
+            (
+                base64_qr,
+                pairing_code,
+                code
+            ) = extrair_qr_da_resposta(
+                data
             )
 
             return {
@@ -1028,7 +1035,8 @@ def obter_qr_code_evolution(
 
 
 def preparar_instancia_para_conexao(
-    instance_name
+    instance_name,
+    numero_whatsapp=None
 ):
     """
     Verifica se a instância existe.
@@ -1065,7 +1073,8 @@ def preparar_instancia_para_conexao(
         }
 
     criacao = criar_instancia_evolution(
-        instance_name
+        instance_name,
+        numero_whatsapp
     )
 
     if not criacao["ok"]:
@@ -1225,6 +1234,76 @@ def extrair_qr_da_resposta(
         base64_qr,
         pairing_code,
         code
+    )
+
+
+def exibir_codigo_pareamento(pairing_code):
+    """Exibe o código de pareamento com botão real de copiar."""
+
+    codigo = str(pairing_code or "").strip()
+
+    if not codigo:
+        return
+
+    codigo_js = json.dumps(codigo)
+
+    components.html(
+        f"""
+        <div style="
+            display:flex;
+            align-items:center;
+            gap:12px;
+            width:100%;
+            box-sizing:border-box;
+            margin:4px 0 10px 0;
+            font-family:Arial,sans-serif;
+        ">
+            <div style="
+                flex:1;
+                background:#F4F4F4;
+                border:1px solid #D1D1D1;
+                border-radius:9px;
+                padding:12px 16px;
+                font-size:24px;
+                font-weight:700;
+                letter-spacing:3px;
+                text-align:center;
+                color:#16271F;
+                box-sizing:border-box;
+            ">
+                {codigo}
+            </div>
+
+            <button
+                style="
+                    border:none;
+                    border-radius:9px;
+                    background:#D3A51D;
+                    color:#17231B;
+                    font-size:15px;
+                    font-weight:700;
+                    padding:12px 16px;
+                    cursor:pointer;
+                    white-space:nowrap;
+                    min-height:48px;
+                "
+                onclick="
+                    navigator.clipboard.writeText({codigo_js})
+                    .then(() => {{
+                        this.innerText='✅ Copiado';
+                        setTimeout(() => this.innerText='📋 Copiar código', 1800);
+                    }})
+                    .catch(() => {{
+                        this.innerText='❌ Não copiado';
+                        setTimeout(() => this.innerText='📋 Copiar código', 1800);
+                    }});
+                "
+            >
+                📋 Copiar código
+            </button>
+        </div>
+        """,
+        height=72,
     )
 
 
@@ -3983,6 +4062,26 @@ elif menu == "📱 Conectar WhatsApp":
 
         st.markdown("")
 
+        numero_whatsapp = st.text_input(
+            "Número do WhatsApp que será conectado",
+            placeholder="Ex: 5548999999999",
+            help=(
+                "Informe o número completo com código do país e DDD, "
+                "somente números. Ex.: 5548999999999"
+            ),
+        )
+
+        numero_whatsapp = re.sub(
+            r"\D",
+            "",
+            str(numero_whatsapp or ""),
+        )
+
+        st.caption(
+            "O número é necessário para gerar o código de conexão. "
+            "O QR Code continua disponível normalmente."
+        )
+
         col_btn, col_status = (
             st.columns([1, 2])
         )
@@ -4003,7 +4102,8 @@ elif menu == "📱 Conectar WhatsApp":
 
             preparo = (
                 preparar_instancia_para_conexao(
-                    INSTANCE_NAME_LOGADA
+                    INSTANCE_NAME_LOGADA,
+                    numero_whatsapp
                 )
             )
 
@@ -4107,7 +4207,8 @@ elif menu == "📱 Conectar WhatsApp":
 
                         qr_resultado = (
                             obter_qr_code_evolution(
-                                INSTANCE_NAME_LOGADA
+                                INSTANCE_NAME_LOGADA,
+                                numero_whatsapp
                             )
                         )
 
@@ -4142,6 +4243,10 @@ elif menu == "📱 Conectar WhatsApp":
                     st.warning(
                         "🟡 **WhatsApp aguardando "
                         "pareamento**"
+                    )
+
+                    st.markdown(
+                        "### 1. Escaneie o QR Code"
                     )
 
                     st.write(
@@ -4185,9 +4290,24 @@ elif menu == "📱 Conectar WhatsApp":
 
                     if pairing_code:
 
-                        st.caption(
-                            "Código de pareamento: "
-                            f"**{pairing_code}**"
+                        st.markdown(
+                            "### 2. Código de conexão"
+                        )
+
+                        exibir_codigo_pareamento(
+                            pairing_code
+                        )
+
+                        st.markdown(
+                            "### 4. Como conectar pelo código"
+                        )
+
+                        st.info(
+                            "No WhatsApp, vá em "
+                            "**Aparelhos conectados → "
+                            "Conectar aparelho → "
+                            "Conectar com número de telefone** "
+                            "e informe o código acima."
                         )
 
                 else:
