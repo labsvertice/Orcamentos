@@ -3783,6 +3783,14 @@ elif menu == "📋 Painel de Orçamentos":
             )
 
             df_exibir[
+                "Cliente"
+            ] = (
+                df_filtrado[
+                    col_nome
+                ]
+            )
+            
+            df_exibir[
                 "Resumo do Serviço"
             ] = (
                 df_filtrado[
@@ -3815,7 +3823,12 @@ elif menu == "📋 Painel de Orçamentos":
                     st.column_config.TextColumn(
                         "Data do Envio"
                     ),
-
+                
+                "Cliente": 
+                    st.column_config.TextColumn(
+                        "Cliente"
+                    ),
+                
                 "Resumo do Serviço":
                     st.column_config.TextColumn(
                         "Resumo do Serviço"
