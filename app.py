@@ -582,67 +582,343 @@ def preparar_foto_para_envio(uploaded_file, indice):
     )
 
 
-@st.dialog(
-    "📷 Tirar foto",
-    width="large",
-    dismissible=True,
-)
-def abrir_camera_veiculo():
-    """Abre a câmera em uma janela dedicada no celular."""
+# =================================================================================
+# CÂMERA NATIVA MOBILE — COMPONENTE CUSTOMIZADO
+# =================================================================================
+#
+# Em celulares, usamos um input HTML nativo com:
+#   accept="image/*"
+#   capture="environment"
+#
+# Isso solicita ao navegador/sistema a interface de captura da câmera traseira,
+# evitando o quadro pequeno do st.camera_input. A foto é comprimida no próprio
+# navegador antes de chegar ao Python.
+#
+# No computador, este componente não é utilizado; o fluxo continua sendo o
+# st.file_uploader para seleção de até 6 imagens.
+#
 
-    fotos_mobile = st.session_state.setdefault(
+MOBILE_CAMERA_COMPONENT = None
+
+try:
+
+    MOBILE_CAMERA_COMPONENT = st.components.v2.component(
+        name="proposta_inteligente_native_camera",
+
+        html="""
+            <div class="pi-camera-wrap">
+                <button id="pi-camera-button" type="button">
+                    📷 Adicionar foto
+                </button>
+
+                <div id="pi-camera-count" class="pi-camera-count">
+                    Fotos adicionadas: 0 / 6
+                </div>
+
+                <div id="pi-camera-grid" class="pi-camera-grid"></div>
+
+                <input
+                    id="pi-camera-input"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                />
+            </div>
+        """,
+
+        css="""
+            .pi-camera-wrap {
+                width: 100%;
+                box-sizing: border-box;
+                font-family: var(--st-font, sans-serif);
+            }
+
+            #pi-camera-button {
+                width: 100%;
+                min-height: 52px;
+                border: 1px solid #D3A51D;
+                border-radius: 9px;
+                background: #D3A51D;
+                color: #17231B;
+                font-size: 16px;
+                font-weight: 700;
+                cursor: pointer;
+                padding: 10px 18px;
+                transition: all 0.2s ease;
+            }
+
+            #pi-camera-button:hover {
+                background: #B58C0B;
+                border-color: #B78D0D;
+            }
+
+            #pi-camera-button:disabled {
+                opacity: 0.55;
+                cursor: default;
+            }
+
+            .pi-camera-count {
+                margin-top: 10px;
+                margin-bottom: 10px;
+                color: var(--st-secondary-text-color, #5E6D64);
+                font-size: 15px;
+            }
+
+            .pi-camera-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+                margin-top: 8px;
+            }
+
+            .pi-camera-card {
+                position: relative;
+                overflow: hidden;
+                border-radius: 10px;
+                border: 1px solid #D1D1D1;
+                background: #F4F4F4;
+                aspect-ratio: 4 / 3;
+            }
+
+            .pi-camera-card img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+
+            .pi-camera-remove {
+                position: absolute;
+                top: 7px;
+                right: 7px;
+                width: 30px;
+                height: 30px;
+                border: none;
+                border-radius: 50%;
+                background: rgba(0,0,0,0.65);
+                color: #FFFFFF;
+                font-size: 17px;
+                line-height: 30px;
+                text-align: center;
+                cursor: pointer;
+            }
+
+            @media (max-width: 700px) {
+                .pi-camera-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 9px;
+                }
+            }
+        """,
+
+        js="""
+            export default function(component) {
+                const { parentElement, data, setStateValue } = component;
+
+                const button = parentElement.querySelector('#pi-camera-button');
+                const input = parentElement.querySelector('#pi-camera-input');
+                const count = parentElement.querySelector('#pi-camera-count');
+                const grid = parentElement.querySelector('#pi-camera-grid');
+
+                const MAX_FOTOS = 6;
+                const LIMITE_BYTES = 450 * 1024;
+                const MAX_LADO = 1600;
+
+                let fotos = Array.isArray(data?.photos)
+                    ? [...data.photos]
+                    : [];
+
+                function atualizarInterface() {
+                    count.textContent = `Fotos adicionadas: ${fotos.length} / ${MAX_FOTOS}`;
+                    button.disabled = fotos.length >= MAX_FOTOS;
+
+                    grid.innerHTML = '';
+
+                    fotos.forEach((foto, index) => {
+                        const card = document.createElement('div');
+                        card.className = 'pi-camera-card';
+
+                        const img = document.createElement('img');
+                        img.src = `data:image/jpeg;base64,${foto.base64}`;
+                        img.alt = `Foto ${index + 1}`;
+
+                        const remove = document.createElement('button');
+                        remove.type = 'button';
+                        remove.className = 'pi-camera-remove';
+                        remove.textContent = '×';
+                        remove.title = `Excluir foto ${index + 1}`;
+
+                        remove.onclick = () => {
+                            fotos.splice(index, 1);
+
+                            fotos = fotos.map((item, i) => ({
+                                ...item,
+                                nome: `foto_${String(i + 1).padStart(2, '0')}.jpg`
+                            }));
+
+                            setStateValue('photos', fotos);
+                            atualizarInterface();
+                        };
+
+                        card.appendChild(img);
+                        card.appendChild(remove);
+                        grid.appendChild(card);
+                    });
+                }
+
+                function comprimirImagem(file) {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+
+                        reader.onerror = () => reject(new Error('Falha ao ler a foto.'));
+
+                        reader.onload = () => {
+                            const img = new Image();
+
+                            img.onerror = () => reject(new Error('A imagem não pôde ser processada.'));
+
+                            img.onload = () => {
+                                let largura = img.width;
+                                let altura = img.height;
+
+                                const maiorLado = Math.max(largura, altura);
+
+                                if (maiorLado > MAX_LADO) {
+                                    const fator = MAX_LADO / maiorLado;
+                                    largura = Math.round(largura * fator);
+                                    altura = Math.round(altura * fator);
+                                }
+
+                                const canvas = document.createElement('canvas');
+                                canvas.width = largura;
+                                canvas.height = altura;
+
+                                const ctx = canvas.getContext('2d', { alpha: false });
+                                ctx.drawImage(img, 0, 0, largura, altura);
+
+                                const qualidades = [0.82, 0.78, 0.74, 0.70, 0.66, 0.60, 0.55];
+
+                                const tentar = (indice) => {
+                                    const qualidade = qualidades[indice] ?? qualidades[qualidades.length - 1];
+
+                                    canvas.toBlob((blob) => {
+                                        if (!blob) {
+                                            reject(new Error('Não foi possível comprimir a foto.'));
+                                            return;
+                                        }
+
+                                        if (blob.size <= LIMITE_BYTES || indice === qualidades.length - 1) {
+                                            const blobReader = new FileReader();
+
+                                            blobReader.onload = () => {
+                                                const resultado = String(blobReader.result || '');
+                                                const base64 = resultado.includes(',')
+                                                    ? resultado.split(',', 2)[1]
+                                                    : resultado;
+
+                                                resolve({
+                                                    nome: `foto_${String(fotos.length + 1).padStart(2, '0')}.jpg`,
+                                                    mime_type: 'image/jpeg',
+                                                    base64,
+                                                    tamanho_kb: Math.round((blob.size / 1024) * 10) / 10
+                                                });
+                                            };
+
+                                            blobReader.onerror = () => reject(new Error('Falha ao preparar a foto.'));
+                                            blobReader.readAsDataURL(blob);
+                                            return;
+                                        }
+
+                                        tentar(indice + 1);
+                                    }, 'image/jpeg', qualidade);
+                                };
+
+                                tentar(0);
+                            };
+
+                            img.src = reader.result;
+                        };
+
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                button.onclick = () => {
+                    if (fotos.length >= MAX_FOTOS) return;
+                    input.value = '';
+                    input.click();
+                };
+
+                input.onchange = async () => {
+                    const arquivo = input.files && input.files[0];
+                    if (!arquivo || fotos.length >= MAX_FOTOS) return;
+
+                    button.disabled = true;
+                    button.textContent = '⏳ Processando foto...';
+
+                    try {
+                        const novaFoto = await comprimirImagem(arquivo);
+                        fotos.push(novaFoto);
+
+                        setStateValue('photos', fotos);
+                        atualizarInterface();
+                    } catch (error) {
+                        count.textContent = 'Não foi possível adicionar a foto. Tente novamente.';
+                    } finally {
+                        button.textContent = '📷 Adicionar foto';
+                        button.disabled = fotos.length >= MAX_FOTOS;
+                    }
+                };
+
+                atualizarInterface();
+
+                return () => {
+                    button.onclick = null;
+                    input.onchange = null;
+                };
+            }
+        """,
+    )
+
+except Exception:
+    MOBILE_CAMERA_COMPONENT = None
+
+
+def carregar_fotos_mobile_component():
+    """Monta o componente de câmera nativa e retorna as fotos persistidas."""
+
+    fotos_atuais = st.session_state.get(
         "fotos_veiculo_mobile",
         []
     )
 
-    if len(fotos_mobile) >= 6:
-        st.success("✅ Limite de 6 fotos atingido.")
-        return
+    if MOBILE_CAMERA_COMPONENT is None:
+        return fotos_atuais
 
-    st.write(
-        f"Foto {len(fotos_mobile) + 1} de 6. "
-        "Posicione o veículo e toque em **Tirar foto**."
-    )
-
-    nova_foto = st.camera_input(
-        "Câmera",
-        key=(
-            "camera_modal_"
-            f"{len(fotos_mobile)}"
-        ),
-        resolution="1080p",
+    resultado = MOBILE_CAMERA_COMPONENT(
+        data={"photos": fotos_atuais},
+        default={"photos": fotos_atuais},
+        on_photos_change=lambda: None,
+        key="camera_nativa_mobile",
         width="stretch",
-        label_visibility="collapsed",
+        height=max(105, 105 + min(len(fotos_atuais), 6) * 120),
     )
 
-    if nova_foto is not None:
+    fotos_resultado = getattr(
+        resultado,
+        "photos",
+        None
+    )
 
-        try:
+    if isinstance(fotos_resultado, list):
+        st.session_state[
+            "fotos_veiculo_mobile"
+        ] = fotos_resultado
 
-            with st.spinner(
-                "Otimizando foto..."
-            ):
+        return fotos_resultado
 
-                dados_jpeg = otimizar_foto_jpeg(
-                    nova_foto
-                )
-
-            indice = len(fotos_mobile) + 1
-
-            fotos_mobile.append(
-                criar_payload_foto(
-                    dados_jpeg,
-                    indice
-                )
-            )
-
-            st.rerun()
-
-        except Exception as e:
-
-            st.error(
-                f"Não foi possível adicionar a foto: {e}"
-            )
+    return fotos_atuais
 
 
 def usuario_em_dispositivo_movel():
@@ -2489,7 +2765,6 @@ if menu == "➕ Novo Orçamento":
 
         fotos_capturadas = []
         fotos_payload_preparado = []
-        photo_requested = False
 
         if EH_FUNILARIA:
 
@@ -2506,7 +2781,7 @@ if menu == "➕ Novo Orçamento":
             dispositivo_movel = usuario_em_dispositivo_movel()
 
             # ==========================================================
-            # CELULAR — BOTÃO ÚNICO + CÂMERA EM JANELA DEDICADA
+            # CELULAR — CÂMERA NATIVA DO NAVEGADOR / APARELHO
             # ==========================================================
 
             if dispositivo_movel:
@@ -2516,74 +2791,7 @@ if menu == "➕ Novo Orçamento":
                         "fotos_veiculo_mobile"
                     ] = []
 
-                fotos_mobile = st.session_state[
-                    "fotos_veiculo_mobile"
-                ]
-
-                if len(fotos_mobile) < 6:
-
-                    col_acao_foto, col_info_foto = st.columns(
-                        [1, 2]
-                    )
-
-                    with col_acao_foto:
-
-                        photo_requested = st.form_submit_button(
-                            "📷 Adicionar foto",
-                            use_container_width=True,
-                        )
-
-                    with col_info_foto:
-
-                        st.caption(
-                            f"Fotos adicionadas: "
-                            f"{len(fotos_mobile)} / 6"
-                        )
-
-                else:
-
-                    photo_requested = False
-
-                    st.success(
-                        "✅ Limite de 6 fotos atingido."
-                    )
-
-                if fotos_mobile:
-
-                    st.caption(
-                        "Fotos registradas nesta proposta:"
-                    )
-
-                    colunas_fotos = st.columns(3)
-
-                    for indice, foto in enumerate(
-                        fotos_mobile,
-                        start=1
-                    ):
-
-                        with colunas_fotos[(indice - 1) % 3]:
-
-                            try:
-
-                                imagem_preview = Image.open(
-                                    io.BytesIO(
-                                        base64.b64decode(
-                                            foto["base64"]
-                                        )
-                                    )
-                                )
-
-                                st.image(
-                                    imagem_preview,
-                                    caption=f"Foto {indice}",
-                                    use_container_width=True,
-                                )
-
-                            except Exception:
-
-                                st.caption(
-                                    f"Foto {indice}"
-                                )
+                fotos_mobile = carregar_fotos_mobile_component()
 
                 fotos_payload_preparado = list(
                     fotos_mobile
@@ -2642,11 +2850,6 @@ if menu == "➕ Novo Orçamento":
         submitted = st.form_submit_button(
             "CRIAR ORÇAMENTO"
         )
-
-    # A câmera do celular fica fora do fluxo visual do formulário.
-    # Ao tocar em "Adicionar foto", abre-se uma janela dedicada e ampla.
-    if photo_requested:
-        abrir_camera_veiculo()
 
     if submitted:
 
