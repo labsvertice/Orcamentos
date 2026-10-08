@@ -508,27 +508,31 @@ def carregar_empresas():
         return None
 
 
-def preparar_foto_para_envio(uploaded_file, indice):
+def otimizar_foto_jpeg(uploaded_file, max_lado=1600, limite_kb=450):
     """
-    Redimensiona e comprime uma foto capturada pela câmera antes do envio.
-    Mantém qualidade suficiente para o PDF e reduz o tamanho do payload.
+    Redimensiona e comprime uma imagem para um formato adequado ao PDF.
+    A função aceita UploadedFile, BytesIO ou bytes.
     """
     try:
-        imagem = Image.open(uploaded_file)
+        if isinstance(uploaded_file, (bytes, bytearray)):
+            origem = io.BytesIO(uploaded_file)
+        else:
+            origem = uploaded_file
+
+        imagem = Image.open(origem)
 
         if imagem.mode != "RGB":
             imagem = imagem.convert("RGB")
 
-        # Mantém no máximo 1600 px no maior lado.
         imagem.thumbnail(
-            (1600, 1600),
+            (max_lado, max_lado),
             Image.Resampling.LANCZOS
         )
 
-        # Tenta manter cada foto em uma faixa de tamanho saudável.
         dados_jpeg = None
+        limite_bytes = limite_kb * 1024
 
-        for qualidade in (78, 72, 66, 60):
+        for qualidade in (82, 78, 74, 70, 66, 60, 55):
             buffer = io.BytesIO()
 
             imagem.save(
@@ -540,26 +544,62 @@ def preparar_foto_para_envio(uploaded_file, indice):
 
             dados_jpeg = buffer.getvalue()
 
-            if len(dados_jpeg) <= 450 * 1024:
+            if len(dados_jpeg) <= limite_bytes:
                 break
 
-        return {
-            "nome": f"foto_{indice:02d}.jpg",
-            "mime_type": "image/jpeg",
-            "base64": base64.b64encode(
-                dados_jpeg
-            ).decode("utf-8"),
-            "tamanho_kb": round(
-                len(dados_jpeg) / 1024,
-                1
-            ),
-        }
+        return dados_jpeg
 
     except Exception as e:
 
         raise ValueError(
-            f"Não foi possível processar a foto {indice}: {e}"
+            f"Não foi possível otimizar a imagem: {e}"
         ) from e
+
+
+def criar_payload_foto(dados_jpeg, indice):
+    """Converte uma imagem JPEG já otimizada para o payload da API."""
+    return {
+        "nome": f"foto_{indice:02d}.jpg",
+        "mime_type": "image/jpeg",
+        "base64": base64.b64encode(
+            dados_jpeg
+        ).decode("utf-8"),
+        "tamanho_kb": round(
+            len(dados_jpeg) / 1024,
+            1
+        ),
+    }
+
+
+def preparar_foto_para_envio(uploaded_file, indice):
+    """
+    Otimiza uma foto e monta o objeto final para envio ao Apps Script.
+    """
+    dados_jpeg = otimizar_foto_jpeg(uploaded_file)
+    return criar_payload_foto(
+        dados_jpeg,
+        indice
+    )
+
+
+def usuario_em_dispositivo_movel():
+    """Detecta, de forma não crítica, se a sessão está em um dispositivo móvel."""
+    try:
+        user_agent = str(
+            st.context.headers.get(
+                "user-agent",
+                ""
+            )
+        ).lower()
+    except Exception:
+        user_agent = ""
+
+    return bool(
+        re.search(
+            r"android|iphone|ipad|ipod|mobile|opera mini|iemobile|windows phone",
+            user_agent
+        )
+    )
 
 
 def carregar_marcas():
@@ -1784,6 +1824,8 @@ def limpar_sessao():
         "pasta_destino_id",
         "cota_empresa",
         "area_atuacao",
+        "fotos_veiculo_mobile",
+        "fotos_upload_version",
 
         "evolution_instance_usuario",
         "evolution_instance_empresa",
@@ -2383,6 +2425,7 @@ if menu == "➕ Novo Orçamento":
         # ==============================================================
 
         fotos_capturadas = []
+        fotos_payload_preparado = []
 
         if EH_FUNILARIA:
 
@@ -2392,60 +2435,176 @@ if menu == "➕ Novo Orçamento":
 
             st.caption(
                 "Opcional — adicione até 6 fotos. "
-                "No celular, toque no botão da foto para abrir "
-                "a câmera e registrar o veículo."
+                "No celular, o botão abre a câmera do aparelho. "
+                "No computador, selecione as imagens."
             )
 
-            foto_coluna_1, foto_coluna_2 = st.columns(2)
+            dispositivo_movel = usuario_em_dispositivo_movel()
 
-            with foto_coluna_1:
+            # ==========================================================
+            # CELULAR — UMA FOTO POR VEZ, USANDO A CÂMERA
+            # ==========================================================
 
-                foto_01 = st.camera_input(
-                    "📷 Foto 1",
-                    key="foto_veiculo_01"
+            if dispositivo_movel:
+
+                if "fotos_veiculo_mobile" not in st.session_state:
+                    st.session_state[
+                        "fotos_veiculo_mobile"
+                    ] = []
+
+                fotos_mobile = st.session_state[
+                    "fotos_veiculo_mobile"
+                ]
+
+                quantidade_mobile = len(fotos_mobile)
+
+                if quantidade_mobile < 6:
+
+                    nova_foto = st.camera_input(
+                        "📷 Adicionar foto",
+                        key=(
+                            f"camera_veiculo_"
+                            f"{quantidade_mobile}"
+                        ),
+                        resolution="1080p",
+                        label_visibility="visible"
+                    )
+
+                    if nova_foto is not None:
+
+                        try:
+
+                            with st.spinner(
+                                "Otimizando foto..."
+                            ):
+
+                                dados_jpeg = otimizar_foto_jpeg(
+                                    nova_foto
+                                )
+
+                            fotos_mobile.append(
+                                {
+                                    "nome": (
+                                        f"foto_"
+                                        f"{quantidade_mobile + 1:02d}.jpg"
+                                    ),
+                                    "mime_type": "image/jpeg",
+                                    "base64": base64.b64encode(
+                                        dados_jpeg
+                                    ).decode("utf-8"),
+                                    "tamanho_kb": round(
+                                        len(dados_jpeg) / 1024,
+                                        1
+                                    ),
+                                }
+                            )
+
+                            st.rerun()
+
+                        except Exception as e:
+
+                            st.error(
+                                f"Não foi possível adicionar a foto: {e}"
+                            )
+
+                else:
+
+                    st.success(
+                        "✅ Limite de 6 fotos atingido."
+                    )
+
+                if fotos_mobile:
+
+                    st.caption(
+                        f"Fotos adicionadas: "
+                        f"{len(fotos_mobile)} / 6"
+                    )
+
+                    colunas_fotos = st.columns(3)
+
+                    for indice, foto in enumerate(
+                        fotos_mobile,
+                        start=1
+                    ):
+
+                        with colunas_fotos[(indice - 1) % 3]:
+
+                            try:
+                                imagem_preview = Image.open(
+                                    io.BytesIO(
+                                        base64.b64decode(
+                                            foto["base64"]
+                                        )
+                                    )
+                                )
+
+                                st.image(
+                                    imagem_preview,
+                                    caption=(
+                                        f"Foto {indice}"
+                                    ),
+                                    use_container_width=True
+                                )
+
+                            except Exception:
+
+                                st.caption(
+                                    f"Foto {indice}"
+                                )
+
+                fotos_payload_preparado = list(
+                    fotos_mobile
                 )
 
-                foto_03 = st.camera_input(
-                    "📷 Foto 3",
-                    key="foto_veiculo_03"
+            # ==========================================================
+            # COMPUTADOR — SELEÇÃO DE ATÉ 6 IMAGENS
+            # ==========================================================
+
+            else:
+
+                if "fotos_upload_version" not in st.session_state:
+                    st.session_state[
+                        "fotos_upload_version"
+                    ] = 0
+
+                upload_key = (
+                    "fotos_veiculo_upload_"
+                    f"{st.session_state['fotos_upload_version']}"
                 )
 
-                foto_05 = st.camera_input(
-                    "📷 Foto 5",
-                    key="foto_veiculo_05"
+                fotos_selecionadas = st.file_uploader(
+                    "📷 Adicionar fotos",
+                    type=[
+                        "jpg",
+                        "jpeg",
+                        "png",
+                        "webp"
+                    ],
+                    accept_multiple_files=True,
+                    key=upload_key,
+                    help=(
+                        "Selecione até 6 imagens do veículo. "
+                        "Nenhuma webcam será utilizada."
+                    )
                 )
 
-            with foto_coluna_2:
+                if fotos_selecionadas:
 
-                foto_02 = st.camera_input(
-                    "📷 Foto 2",
-                    key="foto_veiculo_02"
-                )
+                    if len(fotos_selecionadas) > 6:
 
-                foto_04 = st.camera_input(
-                    "📷 Foto 4",
-                    key="foto_veiculo_04"
-                )
+                        st.warning(
+                            "Você selecionou mais de 6 imagens. "
+                            "Somente as 6 primeiras serão utilizadas."
+                        )
 
-                foto_06 = st.camera_input(
-                    "📷 Foto 6",
-                    key="foto_veiculo_06"
-                )
+                    fotos_capturadas = list(
+                        fotos_selecionadas[:6]
+                    )
 
-            fotos_capturadas = [
-                foto_01,
-                foto_02,
-                foto_03,
-                foto_04,
-                foto_05,
-                foto_06,
-            ]
-
-            fotos_capturadas = [
-                foto
-                for foto in fotos_capturadas
-                if foto is not None
-            ]
+                    st.caption(
+                        f"Imagens selecionadas: "
+                        f"{len(fotos_capturadas)} / 6"
+                    )
 
         submitted = st.form_submit_button(
             "CRIAR ORÇAMENTO"
@@ -2578,23 +2737,36 @@ if menu == "➕ Novo Orçamento":
 
                                 fotos_payload = []
 
-                                if EH_FUNILARIA and fotos_capturadas:
+                                if EH_FUNILARIA:
 
-                                    with st.spinner(
-                                        "Otimizando fotos do veículo..."
-                                    ):
+                                    # Celular:
+                                    # as fotos já foram otimizadas no momento
+                                    # da captura e estão em session_state.
+                                    if fotos_payload_preparado:
 
-                                        for indice, foto in enumerate(
-                                            fotos_capturadas,
-                                            start=1
+                                        fotos_payload = list(
+                                            fotos_payload_preparado
+                                        )
+
+                                    # Computador:
+                                    # comprime somente no envio.
+                                    elif fotos_capturadas:
+
+                                        with st.spinner(
+                                            "Otimizando fotos do veículo..."
                                         ):
 
-                                            fotos_payload.append(
-                                                preparar_foto_para_envio(
-                                                    foto,
-                                                    indice
+                                            for indice, foto in enumerate(
+                                                fotos_capturadas,
+                                                start=1
+                                            ):
+
+                                                fotos_payload.append(
+                                                    preparar_foto_para_envio(
+                                                        foto,
+                                                        indice
+                                                    )
                                                 )
-                                            )
 
                                 payload = {
 
@@ -2711,6 +2883,21 @@ if menu == "➕ Novo Orçamento":
                                         f"✅ Orçamento para "
                                         f"**{nome_cliente}** "
                                         "registrado com sucesso!"
+                                    )
+
+                                    # Limpa as fotos somente após sucesso,
+                                    # preservando-as em caso de falha para permitir nova tentativa.
+                                    st.session_state[
+                                        "fotos_veiculo_mobile"
+                                    ] = []
+
+                                    st.session_state[
+                                        "fotos_upload_version"
+                                    ] = (
+                                        st.session_state.get(
+                                            "fotos_upload_version",
+                                            0
+                                        ) + 1
                                     )
 
                                 # ==================================================
