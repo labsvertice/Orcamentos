@@ -1,10 +1,12 @@
 import base64
+import io
 import os
 import re
 
 import pandas as pd
 import requests
 import streamlit as st
+from PIL import Image
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -504,6 +506,60 @@ def carregar_empresas():
         )
 
         return None
+
+
+def preparar_foto_para_envio(uploaded_file, indice):
+    """
+    Redimensiona e comprime uma foto capturada pela câmera antes do envio.
+    Mantém qualidade suficiente para o PDF e reduz o tamanho do payload.
+    """
+    try:
+        imagem = Image.open(uploaded_file)
+
+        if imagem.mode != "RGB":
+            imagem = imagem.convert("RGB")
+
+        # Mantém no máximo 1600 px no maior lado.
+        imagem.thumbnail(
+            (1600, 1600),
+            Image.Resampling.LANCZOS
+        )
+
+        # Tenta manter cada foto em uma faixa de tamanho saudável.
+        dados_jpeg = None
+
+        for qualidade in (78, 72, 66, 60):
+            buffer = io.BytesIO()
+
+            imagem.save(
+                buffer,
+                format="JPEG",
+                quality=qualidade,
+                optimize=True
+            )
+
+            dados_jpeg = buffer.getvalue()
+
+            if len(dados_jpeg) <= 450 * 1024:
+                break
+
+        return {
+            "nome": f"foto_{indice:02d}.jpg",
+            "mime_type": "image/jpeg",
+            "base64": base64.b64encode(
+                dados_jpeg
+            ).decode("utf-8"),
+            "tamanho_kb": round(
+                len(dados_jpeg) / 1024,
+                1
+            ),
+        }
+
+    except Exception as e:
+
+        raise ValueError(
+            f"Não foi possível processar a foto {indice}: {e}"
+        ) from e
 
 
 def carregar_marcas():
@@ -2322,6 +2378,75 @@ if menu == "➕ Novo Orçamento":
             )
         )
 
+        # ==============================================================
+        # FUNILARIA E PINTURA — FOTOS DO VEÍCULO
+        # ==============================================================
+
+        fotos_capturadas = []
+
+        if EH_FUNILARIA:
+
+            st.subheader(
+                "5. Fotos do Veículo"
+            )
+
+            st.caption(
+                "Opcional — adicione até 6 fotos. "
+                "No celular, toque no botão da foto para abrir "
+                "a câmera e registrar o veículo."
+            )
+
+            foto_coluna_1, foto_coluna_2 = st.columns(2)
+
+            with foto_coluna_1:
+
+                foto_01 = st.camera_input(
+                    "📷 Foto 1",
+                    key="foto_veiculo_01"
+                )
+
+                foto_03 = st.camera_input(
+                    "📷 Foto 3",
+                    key="foto_veiculo_03"
+                )
+
+                foto_05 = st.camera_input(
+                    "📷 Foto 5",
+                    key="foto_veiculo_05"
+                )
+
+            with foto_coluna_2:
+
+                foto_02 = st.camera_input(
+                    "📷 Foto 2",
+                    key="foto_veiculo_02"
+                )
+
+                foto_04 = st.camera_input(
+                    "📷 Foto 4",
+                    key="foto_veiculo_04"
+                )
+
+                foto_06 = st.camera_input(
+                    "📷 Foto 6",
+                    key="foto_veiculo_06"
+                )
+
+            fotos_capturadas = [
+                foto_01,
+                foto_02,
+                foto_03,
+                foto_04,
+                foto_05,
+                foto_06,
+            ]
+
+            fotos_capturadas = [
+                foto
+                for foto in fotos_capturadas
+                if foto is not None
+            ]
+
         submitted = st.form_submit_button(
             "CRIAR ORÇAMENTO"
         )
@@ -2451,6 +2576,26 @@ if menu == "➕ Novo Orçamento":
 
                             try:
 
+                                fotos_payload = []
+
+                                if EH_FUNILARIA and fotos_capturadas:
+
+                                    with st.spinner(
+                                        "Otimizando fotos do veículo..."
+                                    ):
+
+                                        for indice, foto in enumerate(
+                                            fotos_capturadas,
+                                            start=1
+                                        ):
+
+                                            fotos_payload.append(
+                                                preparar_foto_para_envio(
+                                                    foto,
+                                                    indice
+                                                )
+                                            )
+
                                 payload = {
 
                                     "nome": (
@@ -2487,6 +2632,15 @@ if menu == "➕ Novo Orçamento":
                                         modelo_veiculo
                                         if EH_FUNILARIA
                                         else ""
+                                    ),
+
+                                    # Fotos do veículo:
+                                    # opcionais e exclusivas de Funilaria e Pintura.
+                                    # As imagens já chegam comprimidas e em Base64.
+                                    "fotos": (
+                                        fotos_payload
+                                        if EH_FUNILARIA
+                                        else []
                                     ),
 
                                     # Instância efetiva:
