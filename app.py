@@ -582,6 +582,69 @@ def preparar_foto_para_envio(uploaded_file, indice):
     )
 
 
+@st.dialog(
+    "📷 Tirar foto",
+    width="large",
+    dismissible=True,
+)
+def abrir_camera_veiculo():
+    """Abre a câmera em uma janela dedicada no celular."""
+
+    fotos_mobile = st.session_state.setdefault(
+        "fotos_veiculo_mobile",
+        []
+    )
+
+    if len(fotos_mobile) >= 6:
+        st.success("✅ Limite de 6 fotos atingido.")
+        return
+
+    st.write(
+        f"Foto {len(fotos_mobile) + 1} de 6. "
+        "Posicione o veículo e toque em **Tirar foto**."
+    )
+
+    nova_foto = st.camera_input(
+        "Câmera",
+        key=(
+            "camera_modal_"
+            f"{len(fotos_mobile)}"
+        ),
+        resolution="1080p",
+        width="stretch",
+        label_visibility="collapsed",
+    )
+
+    if nova_foto is not None:
+
+        try:
+
+            with st.spinner(
+                "Otimizando foto..."
+            ):
+
+                dados_jpeg = otimizar_foto_jpeg(
+                    nova_foto
+                )
+
+            indice = len(fotos_mobile) + 1
+
+            fotos_mobile.append(
+                criar_payload_foto(
+                    dados_jpeg,
+                    indice
+                )
+            )
+
+            st.rerun()
+
+        except Exception as e:
+
+            st.error(
+                f"Não foi possível adicionar a foto: {e}"
+            )
+
+
 def usuario_em_dispositivo_movel():
     """Detecta, de forma não crítica, se a sessão está em um dispositivo móvel."""
     try:
@@ -2426,6 +2489,7 @@ if menu == "➕ Novo Orçamento":
 
         fotos_capturadas = []
         fotos_payload_preparado = []
+        photo_requested = False
 
         if EH_FUNILARIA:
 
@@ -2442,7 +2506,7 @@ if menu == "➕ Novo Orçamento":
             dispositivo_movel = usuario_em_dispositivo_movel()
 
             # ==========================================================
-            # CELULAR — UMA FOTO POR VEZ, USANDO A CÂMERA
+            # CELULAR — BOTÃO ÚNICO + CÂMERA EM JANELA DEDICADA
             # ==========================================================
 
             if dispositivo_movel:
@@ -2456,58 +2520,29 @@ if menu == "➕ Novo Orçamento":
                     "fotos_veiculo_mobile"
                 ]
 
-                quantidade_mobile = len(fotos_mobile)
+                if len(fotos_mobile) < 6:
 
-                if quantidade_mobile < 6:
-
-                    nova_foto = st.camera_input(
-                        "📷 Adicionar foto",
-                        key=(
-                            f"camera_veiculo_"
-                            f"{quantidade_mobile}"
-                        ),
-                        resolution="1080p",
-                        label_visibility="visible"
+                    col_acao_foto, col_info_foto = st.columns(
+                        [1, 2]
                     )
 
-                    if nova_foto is not None:
+                    with col_acao_foto:
 
-                        try:
+                        photo_requested = st.form_submit_button(
+                            "📷 Adicionar foto",
+                            use_container_width=True,
+                        )
 
-                            with st.spinner(
-                                "Otimizando foto..."
-                            ):
+                    with col_info_foto:
 
-                                dados_jpeg = otimizar_foto_jpeg(
-                                    nova_foto
-                                )
-
-                            fotos_mobile.append(
-                                {
-                                    "nome": (
-                                        f"foto_"
-                                        f"{quantidade_mobile + 1:02d}.jpg"
-                                    ),
-                                    "mime_type": "image/jpeg",
-                                    "base64": base64.b64encode(
-                                        dados_jpeg
-                                    ).decode("utf-8"),
-                                    "tamanho_kb": round(
-                                        len(dados_jpeg) / 1024,
-                                        1
-                                    ),
-                                }
-                            )
-
-                            st.rerun()
-
-                        except Exception as e:
-
-                            st.error(
-                                f"Não foi possível adicionar a foto: {e}"
-                            )
+                        st.caption(
+                            f"Fotos adicionadas: "
+                            f"{len(fotos_mobile)} / 6"
+                        )
 
                 else:
+
+                    photo_requested = False
 
                     st.success(
                         "✅ Limite de 6 fotos atingido."
@@ -2516,8 +2551,7 @@ if menu == "➕ Novo Orçamento":
                 if fotos_mobile:
 
                     st.caption(
-                        f"Fotos adicionadas: "
-                        f"{len(fotos_mobile)} / 6"
+                        "Fotos registradas nesta proposta:"
                     )
 
                     colunas_fotos = st.columns(3)
@@ -2530,6 +2564,7 @@ if menu == "➕ Novo Orçamento":
                         with colunas_fotos[(indice - 1) % 3]:
 
                             try:
+
                                 imagem_preview = Image.open(
                                     io.BytesIO(
                                         base64.b64decode(
@@ -2540,10 +2575,8 @@ if menu == "➕ Novo Orçamento":
 
                                 st.image(
                                     imagem_preview,
-                                    caption=(
-                                        f"Foto {indice}"
-                                    ),
-                                    use_container_width=True
+                                    caption=f"Foto {indice}",
+                                    use_container_width=True,
                                 )
 
                             except Exception:
@@ -2610,7 +2643,12 @@ if menu == "➕ Novo Orçamento":
             "CRIAR ORÇAMENTO"
         )
 
-        if submitted:
+    # A câmera do celular fica fora do fluxo visual do formulário.
+    # Ao tocar em "Adicionar foto", abre-se uma janela dedicada e ampla.
+    if photo_requested:
+        abrir_camera_veiculo()
+
+    if submitted:
 
             # ==========================================================
             # NORMALIZAÇÃO DOS CAMPOS ESPECÍFICOS
