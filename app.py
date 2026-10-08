@@ -356,148 +356,6 @@ def obter_google_sheets_service():
         ) from e
 
 
-def obter_nome_aba_respostas(service):
-    """Localiza a aba usada pelo histórico de respostas."""
-    try:
-        resposta = (
-            service.spreadsheets()
-            .get(
-                spreadsheetId=SPREADSHEET_ID,
-                fields="sheets.properties.title"
-            )
-            .execute()
-        )
-
-        titulos = [
-            str(
-                item.get("properties", {})
-                .get("title", "")
-            ).strip()
-            for item in resposta.get("sheets", [])
-        ]
-
-        candidatos = [
-            "Respostas ao formulário 1",
-            "Form_Responses",
-            "Form Responses 1",
-        ]
-
-        for candidato in candidatos:
-            for titulo in titulos:
-                if titulo.casefold() == candidato.casefold():
-                    return titulo
-
-        for titulo in titulos:
-            if (
-                "respostas ao formulário" in titulo.casefold()
-                or "form_responses" in titulo.casefold()
-                or "form responses" in titulo.casefold()
-            ):
-                return titulo
-
-        if titulos:
-            return titulos[0]
-
-        raise RuntimeError(
-            "Nenhuma aba foi encontrada na planilha."
-        )
-
-    except Exception as e:
-        raise RuntimeError(
-            "Não foi possível localizar a aba de respostas: "
-            f"{e}"
-        ) from e
-
-
-def numero_para_coluna_excel(numero):
-    """Converte índice 1-based para letra de coluna Excel/Sheets."""
-    resultado = ""
-    n = int(numero)
-
-    while n > 0:
-        n, resto = divmod(n - 1, 26)
-        resultado = chr(65 + resto) + resultado
-
-    return resultado
-
-
-def garantir_coluna_aprovado(service):
-    """Garante a coluna de aprovação no histórico e retorna nome da aba + coluna."""
-    aba = obter_nome_aba_respostas(service)
-
-    resposta = (
-        service.spreadsheets()
-        .values()
-        .get(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"'{aba}'!1:1"
-        )
-        .execute()
-    )
-
-    valores = resposta.get("values", [])
-    cabecalho = valores[0] if valores else []
-
-    candidatos = {
-        "Orcamento_Aprovado",
-        "Orçamento_Aprovado",
-        "Aprovado",
-        "Orçamento Aprovado",
-    }
-
-    indice_existente = None
-
-    for i, valor in enumerate(cabecalho):
-        normalizado = str(valor).strip().casefold()
-        if normalizado in {
-            item.casefold()
-            for item in candidatos
-        }:
-            indice_existente = i + 1
-            break
-
-    if indice_existente is None:
-        indice_existente = len(cabecalho) + 1
-        letra = numero_para_coluna_excel(indice_existente)
-
-        service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"'{aba}'!{letra}1",
-            valueInputOption="USER_ENTERED",
-            body={"values": [["Orcamento_Aprovado"]]},
-        ).execute()
-
-    return aba, numero_para_coluna_excel(indice_existente)
-
-
-def salvar_aprovacao_proposta(sheet_name, column_letter, sheet_row, aprovado):
-    """Grava a aprovação da proposta diretamente no Google Sheets."""
-    service = obter_google_sheets_service()
-
-    valor = (
-        "SIM"
-        if str(aprovado).strip().upper() == "SIM"
-        else "NÃO"
-    )
-
-    try:
-        service.spreadsheets().values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=(
-                f"'{sheet_name}'!"
-                f"{column_letter}{int(sheet_row)}"
-            ),
-            valueInputOption="USER_ENTERED",
-            body={"values": [[valor]]},
-        ).execute()
-
-    except Exception as e:
-        raise RuntimeError(
-            "Não foi possível salvar a aprovação "
-            f"da proposta na linha {sheet_row}: {e}"
-        ) from e
-
-
 def normalizar_colunas(df):
     if df is not None and not df.empty:
         df = df.copy()
@@ -2362,6 +2220,41 @@ def limpar_sessao():
 
 
 # =================================================================================
+# SALVAR APROVAÇÃO DO ORÇAMENTO
+# =================================================================================
+
+def salvar_aprovacao_orcamento(linhas_valores):
+    """Atualiza Orcamento_Aprovado na Form_Responses via Google Sheets API."""
+
+    if not linhas_valores:
+        return True, None
+
+    try:
+
+        service = obter_google_sheets_service()
+
+        service.spreadsheets().values().batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={
+                "valueInputOption": "USER_ENTERED",
+                "data": [
+                    {
+                        "range": f"Form_Responses!P{int(linha)}",
+                        "values": [[str(valor).strip().upper()]],
+                    }
+                    for linha, valor in linhas_valores
+                ],
+            },
+        ).execute()
+
+        return True, None
+
+    except Exception as e:
+
+        return False, str(e)
+
+
+# =================================================================================
 # TELA DE LOGIN
 # =================================================================================
 
@@ -3491,11 +3384,8 @@ elif menu == "📋 Painel de Orçamentos":
             .str.strip()
         )
 
-        # Linha física correspondente na aba de respostas.
-        # Cabeçalho = linha 1; primeira proposta = linha 2.
-        df_dados["__sheet_row"] = list(
-            range(2, 2 + len(df_dados))
-        )
+        # Número real da linha na aba Form_Responses.
+        df_dados["__sheet_row"] = range(2, 2 + len(df_dados))
 
         # ------------------------------------------------------------------
         # IDENTIFICAÇÃO DAS COLUNAS
@@ -4364,22 +4254,6 @@ elif menu == "📋 Painel de Orçamentos":
                     )
 
             # ------------------------------------------------------------------
-            # ORDEM DO HISTÓRICO
-            # Mais recentes primeiro.
-            # ------------------------------------------------------------------
-
-            df_filtrado = (
-                df_filtrado
-                .sort_values(
-                    by="Data_Parsed",
-                    ascending=False,
-                    na_position="last",
-                    kind="stable",
-                )
-                .copy()
-            )
-
-            # ------------------------------------------------------------------
             # KPIs
             # ------------------------------------------------------------------
 
@@ -4955,292 +4829,259 @@ elif menu == "📋 Painel de Orçamentos":
                 "📋 Histórico de Orçamentos"
             )
 
-            # Prepara a coluna de aprovação.
-            # Campo vazio no histórico = NÃO, por padrão visual.
+            # Sempre mostra os registros mais recentes primeiro.
+            df_historico = (
+                df_filtrado
+                .dropna(subset=["Data_Parsed"])
+                .sort_values(
+                    "Data_Parsed",
+                    ascending=False,
+                    kind="stable"
+                )
+                .copy()
+            )
+
             col_aprovado = next(
                 (
                     c
-                    for c in df_filtrado.columns
+                    for c in df_historico.columns
                     if str(c).strip().lower()
                     in {
                         "orcamento_aprovado",
                         "orçamento_aprovado",
-                        "aprovado",
+                        "orcamento aprovado",
                         "orçamento aprovado",
                     }
                 ),
-                None,
+                None
             )
 
-            if col_aprovado:
-                aprovados = (
-                    df_filtrado[col_aprovado]
-                    .fillna("")
+            if col_aprovado is None:
+
+                df_historico["Orcamento_Aprovado"] = "NÃO"
+                col_aprovado = "Orcamento_Aprovado"
+
+            else:
+
+                df_historico[col_aprovado] = (
+                    df_historico[col_aprovado]
+                    .fillna("NÃO")
                     .astype(str)
                     .str.strip()
                     .str.upper()
-                    .replace({"SIM": "SIM", "NÃO": "NÃO", "NAO": "NÃO"})
-                )
-                aprovados = aprovados.where(
-                    aprovados.isin(["SIM", "NÃO"]),
-                    "NÃO",
-                )
-            else:
-                aprovados = pd.Series(
-                    "NÃO",
-                    index=df_filtrado.index,
-                    dtype="object",
+                    .replace({
+                        "SIM": "SIM",
+                        "NÃO": "NÃO",
+                        "NAO": "NÃO",
+                        "": "NÃO",
+                    })
                 )
 
-            def gerar_link_whatsapp(valor):
-                numeros = re.sub(
-                    r"\D",
-                    "",
-                    str(valor or "")
+            # A linha física da planilha é mantida para persistir o SIM/NÃO.
+            if "__sheet_row" not in df_historico.columns:
+                df_historico["__sheet_row"] = (
+                    df_historico.index.to_series() + 2
                 )
-
-                if not numeros:
-                    return ""
-
-                if (
-                    not numeros.startswith("55")
-                    and len(numeros) >= 10
-                ):
-                    numeros = "55" + numeros
-
-                return f"https://wa.me/{numeros}"
 
             df_exibir = pd.DataFrame(
-                index=df_filtrado.index
+                index=df_historico["__sheet_row"]
             )
 
             df_exibir["Data do Envio"] = (
-                df_filtrado["Data_Parsed"]
-                .dt.strftime("%d/%m/%Y %H:%M")
+                df_historico["Data_Parsed"]
+                .dt.strftime("%d/%m/%Y")
+                .fillna("")
+                .to_numpy()
             )
 
             df_exibir["Cliente"] = (
-                df_filtrado[col_nome]
-            )
-
-            df_exibir["Placa"] = (
-                df_filtrado[col_placa]
-                if col_placa
-                else ""
-            )
-
-            df_exibir["WhatsApp"] = (
-                df_filtrado[col_whats]
+                df_historico[col_nome]
                 .fillna("")
                 .astype(str)
-                .map(gerar_link_whatsapp)
+                .to_numpy()
             )
 
+            if eh_funilaria_pintura and col_placa:
+
+                df_exibir["Placa"] = (
+                    df_historico[col_placa]
+                    .fillna("")
+                    .astype(str)
+                    .to_numpy()
+                )
+
+                numeros = (
+                    df_historico[col_whats]
+                    .fillna("")
+                    .astype(str)
+                    .map(lambda valor: re.sub(r"\D", "", valor))
+                )
+
+                df_exibir["WhatsApp"] = [
+                    f"https://wa.me/{numero}" if numero else ""
+                    for numero in numeros
+                ]
+
             df_exibir["Resumo do Serviço"] = (
-                df_filtrado[col_resumo]
+                df_historico[col_resumo]
+                .fillna("")
+                .astype(str)
+                .to_numpy()
             )
 
             df_exibir["Valor Total"] = (
-                df_filtrado["Valor_Total"]
+                df_historico["Valor_Total"]
                 .apply(moeda_br)
+                .to_numpy()
             )
 
             df_exibir["Status"] = (
-                df_filtrado[col_status]
-            )
-
-            df_exibir["Orçamento Aprovado"] = aprovados
-
-            df_exibir["Proposta (PDF)"] = (
-                df_filtrado[col_pdf]
+                df_historico[col_status]
                 .fillna("")
                 .astype(str)
-                .str.strip()
-                if col_pdf
-                else ""
+                .to_numpy()
             )
 
-            # Guarda a linha original da planilha para persistir a edição.
-            df_exibir["__sheet_row"] = (
-                df_filtrado["__sheet_row"]
-                .astype(int)
+            df_exibir["Aprovado"] = (
+                df_historico[col_aprovado]
+                .fillna("NÃO")
+                .astype(str)
+                .to_numpy()
             )
+
+            if col_pdf:
+
+                df_exibir["Proposta (PDF)"] = (
+                    df_historico[col_pdf]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                    .to_numpy()
+                )
+
+            else:
+
+                df_exibir["Proposta (PDF)"] = "Aguardando Link"
 
             config_colunas = {
 
                 "Data do Envio": st.column_config.TextColumn(
-                    "Data do Envio"
+                    "Data do Envio",
+                    width="small",
                 ),
 
                 "Cliente": st.column_config.TextColumn(
-                    "Cliente"
-                ),
-
-                "Placa": st.column_config.TextColumn(
-                    "Placa"
-                ),
-
-                "WhatsApp": st.column_config.LinkColumn(
-                    "WhatsApp",
-                    help="Abrir uma conversa com o cliente no WhatsApp.",
-                    display_text="📲 WhatsApp",
-                    validate=r"^https://wa\.me/[0-9]+$",
+                    "Cliente",
+                    width="medium",
                 ),
 
                 "Resumo do Serviço": st.column_config.TextColumn(
-                    "Resumo do Serviço"
+                    "Resumo do Serviço",
+                    width="large",
                 ),
 
                 "Valor Total": st.column_config.TextColumn(
-                    "Valor Total"
+                    "Valor Total",
+                    width="medium",
                 ),
 
                 "Status": st.column_config.TextColumn(
-                    "Status"
+                    "Status",
+                    width="small",
                 ),
 
-                "Orçamento Aprovado": st.column_config.SelectboxColumn(
+                "Aprovado": st.column_config.SelectboxColumn(
                     "Aprovado",
-                    help="Marque SIM quando o cliente aprovar o orçamento.",
                     options=["NÃO", "SIM"],
                     default="NÃO",
-                    required=True,
+                    width="small",
                 ),
+            }
 
-                "Proposta (PDF)": st.column_config.LinkColumn(
+            if eh_funilaria_pintura and col_placa:
+
+                config_colunas["Placa"] = st.column_config.TextColumn(
+                    "Placa",
+                    width="small",
+                )
+
+                config_colunas["WhatsApp"] = st.column_config.LinkColumn(
+                    "WhatsApp",
+                    display_text="📲 WhatsApp",
+                    validate=r"^https://wa\.me/.*$",
+                    width="small",
+                )
+
+            if col_pdf:
+
+                config_colunas["Proposta (PDF)"] = st.column_config.LinkColumn(
                     "Proposta (PDF)",
                     help="Clique para abrir o PDF da proposta.",
                     display_text="📥 Abrir PDF",
-                    validate=r"^https?://.*$",
-                ),
-
-                "__sheet_row": None,
-            }
-
-            # Tabela editável apenas na coluna de aprovação.
-            colunas_visiveis = [
-                "Data do Envio",
-                "Cliente",
-                "Placa",
-                "WhatsApp",
-                "Resumo do Serviço",
-                "Valor Total",
-                "Status",
-                "Orçamento Aprovado",
-                "Proposta (PDF)",
-            ]
-
-            colunas_bloqueadas = [
-                coluna
-                for coluna in colunas_visiveis
-                if coluna != "Orçamento Aprovado"
-            ]
-
-            # Sanitiza textos sem transformar os links em texto puro.
-            for coluna in colunas_visiveis:
-                if coluna in {
-                    "WhatsApp",
-                    "Proposta (PDF)",
-                }:
-                    continue
-
-                df_exibir[coluna] = (
-                    df_exibir[coluna]
-                    .fillna("")
-                    .astype(str)
-                    .str.replace(
-                        r"\.0$",
-                        "",
-                        regex=True
-                    )
-                    .str.strip()
+                    validate="^https?://.*$",
+                    width="medium",
                 )
 
-            editor = st.data_editor(
+            else:
+
+                config_colunas["Proposta (PDF)"] = st.column_config.TextColumn(
+                    "Proposta (PDF)",
+                    width="medium",
+                )
+
+            edited_df = st.data_editor(
                 df_exibir,
                 use_container_width=True,
                 hide_index=True,
-                column_order=colunas_visiveis,
-                column_config=config_colunas,
-                disabled=colunas_bloqueadas,
                 num_rows="fixed",
+                column_config=config_colunas,
+                disabled=[
+                    c
+                    for c in df_exibir.columns
+                    if c != "Aprovado"
+                ],
                 key="historico_orcamentos_editor",
             )
 
-            # Persiste imediatamente qualquer alteração de SIM/NÃO.
-            try:
+            # Persiste apenas as células alteradas em Orcamento_Aprovado (P).
+            alteracoes = []
 
-                sheet_service = obter_google_sheets_service()
-                nome_aba_aprovacao, coluna_aprovacao = (
-                    garantir_coluna_aprovado(sheet_service)
+            for sheet_row in edited_df.index:
+
+                antigo = str(
+                    df_exibir.loc[sheet_row, "Aprovado"]
+                ).strip().upper()
+
+                novo = str(
+                    edited_df.loc[sheet_row, "Aprovado"]
+                ).strip().upper()
+
+                if novo == "NAO":
+                    novo = "NÃO"
+
+                if novo not in {"SIM", "NÃO"}:
+                    novo = "NÃO"
+
+                if novo != antigo:
+                    alteracoes.append((int(sheet_row), novo))
+
+            if alteracoes:
+
+                ok, erro_salvar = salvar_aprovacao_orcamento(
+                    alteracoes
                 )
 
-                originais = df_exibir[
-                    "Orçamento Aprovado"
-                ].tolist()
+                if not ok:
 
-                atuais = editor[
-                    "Orçamento Aprovado"
-                ].tolist()
-
-                for indice, (
-                    original, atual
-                ) in enumerate(
-                    zip(originais, atuais)
-                ):
-
-                    original_norm = (
-                        str(original)
-                        .strip()
-                        .upper()
+                    st.warning(
+                        "A tabela foi exibida, mas não foi possível salvar "
+                        "a aprovação. Verifique se a Service Account possui "
+                        "acesso de Editor ao Google Sheets."
                     )
 
-                    atual_norm = (
-                        str(atual)
-                        .strip()
-                        .upper()
+                    st.caption(
+                        f"Detalhe: {erro_salvar}"
                     )
-
-                    if atual_norm == "NAO":
-                        atual_norm = "NÃO"
-
-                    if atual_norm not in {"SIM", "NÃO"}:
-                        atual_norm = "NÃO"
-
-                    if atual_norm != original_norm:
-
-                        sheet_row = int(
-                            editor.iloc[indice]["__sheet_row"]
-                        )
-
-                        salvar_aprovacao_proposta(
-                            nome_aba_aprovacao,
-                            coluna_aprovacao,
-                            sheet_row,
-                            atual_norm,
-                        )
-
-                        st.toast(
-                            f"Aprovação atualizada para {atual_norm}.",
-                            icon="✅",
-                        )
-
-            except Exception as erro_aprovacao:
-
-                st.warning(
-                    "A tabela foi exibida, mas não foi possível "
-                    "salvar a aprovação na planilha. "
-                    "Verifique se a Service Account possui acesso "
-                    "de editor ao Google Sheets. "
-                    f"Detalhe: {erro_aprovacao}"
-                )
-
-    else:
-
-        st.info(
-            "Nenhum dado encontrado "
-            "na planilha."
-        )
 
 
 # =================================================================================
