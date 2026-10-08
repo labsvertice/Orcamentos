@@ -506,6 +506,60 @@ def carregar_empresas():
         return None
 
 
+def carregar_marcas():
+    """
+    Carrega a lista de marcas de veículos da aba Listas.
+    A coluna principal esperada é Marcas_Veiculos.
+    """
+    try:
+        df = ler_aba_sheets(
+            "Listas"
+        )
+
+        if df is None or df.empty:
+            return []
+
+        coluna = localizar_coluna(
+            df,
+            [
+                "Marcas_Veiculos",
+                "Marcas Veiculos",
+                "Marca_Veiculo",
+                "Marca",
+            ]
+        )
+
+        if not coluna:
+            coluna = df.columns[0]
+
+        marcas = []
+        vistos = set()
+
+        for valor in df[coluna].tolist():
+            texto = str(valor or "").strip()
+
+            if not texto:
+                continue
+
+            chave = texto.casefold()
+
+            if chave in vistos:
+                continue
+
+            vistos.add(chave)
+            marcas.append(texto)
+
+        return marcas
+
+    except Exception as e:
+
+        st.error(
+            f"Erro ao carregar a aba Listas: {e}"
+        )
+
+        return []
+
+
 def localizar_coluna(
     df,
     candidatos
@@ -1507,6 +1561,15 @@ def obter_empresa(
         ]
     )
 
+    c_area_atuacao = localizar_coluna(
+        df,
+        [
+            "Area_Atuacao",
+            "Área de Atuação",
+            "Area de Atuacao",
+        ]
+    )
+
     if not c_id or not c_nome or not c_ativo:
 
         return None, (
@@ -1629,6 +1692,20 @@ def obter_empresa(
             instancia_empresa
         ),
 
+        "area_atuacao": (
+            str(
+                registro[c_area_atuacao]
+            ).strip()
+            if c_area_atuacao
+            and pd.notna(
+                registro[c_area_atuacao]
+            )
+            and str(
+                registro[c_area_atuacao]
+            ).strip()
+            else "Padrão"
+        ),
+
     }, None
 
 
@@ -1650,6 +1727,7 @@ def limpar_sessao():
         "template_id",
         "pasta_destino_id",
         "cota_empresa",
+        "area_atuacao",
 
         "evolution_instance_usuario",
         "evolution_instance_empresa",
@@ -1865,6 +1943,16 @@ def tela_login():
                         ]
                     )
 
+                    st.session_state[
+                        "area_atuacao"
+                    ] = (
+                        empresa.get(
+                            "area_atuacao",
+                            "Padrão"
+                        )
+                        or "Padrão"
+                    )
+
                     # =================================================
                     # WHATSAPP
                     # =================================================
@@ -1950,6 +2038,25 @@ PERFIL_ACESSO_LOGADO = (
     st.session_state[
         "perfil_acesso"
     ]
+)
+
+AREA_ATUACAO_LOGADA = (
+    st.session_state
+    .get(
+        "area_atuacao",
+        "Padrão"
+    )
+    or "Padrão"
+).strip()
+
+AREA_ATUACAO_NORMALIZADA = (
+    AREA_ATUACAO_LOGADA
+    .lower()
+)
+
+EH_FUNILARIA = (
+    AREA_ATUACAO_NORMALIZADA
+    == "funilaria e pintura"
 )
 
 
@@ -2094,6 +2201,15 @@ if menu == "➕ Novo Orçamento":
             "⚪ Não configurado"
         )
 
+    # ------------------------------------------------------------------
+    # Campos específicos da área de atuação
+    # ------------------------------------------------------------------
+    marcas_veiculos = []
+
+    if EH_FUNILARIA:
+
+        marcas_veiculos = carregar_marcas()
+
     with st.form(
         "form_orcamento",
         clear_on_submit=True
@@ -2125,8 +2241,61 @@ if menu == "➕ Novo Orçamento":
                 )
             )
 
+        # ==============================================================
+        # FUNILARIA E PINTURA — DADOS DO VEÍCULO
+        # ==============================================================
+
+        placa_veiculo = ""
+        marca_veiculo = ""
+        modelo_veiculo = ""
+
+        if EH_FUNILARIA:
+
+            st.subheader(
+                "2. Dados do Veículo"
+            )
+
+            col_placa, col_marca, col_modelo = (
+                st.columns(3)
+            )
+
+            with col_placa:
+
+                placa_veiculo = st.text_input(
+                    "Nº da Placa *",
+                    placeholder="Ex: ABC1D23"
+                )
+
+            with col_marca:
+
+                marcas_opcoes = (
+                    ["Selecione a marca"]
+                    + marcas_veiculos
+                )
+
+                marca_veiculo = st.selectbox(
+                    "Marca do Veículo *",
+                    marcas_opcoes,
+                    index=0,
+                )
+
+            with col_modelo:
+
+                modelo_veiculo = st.text_input(
+                    "Modelo do Veículo *",
+                    placeholder="Ex: Onix Premier 1.0 Turbo"
+                )
+
+            numero_secao_detalhes = "3."
+            numero_secao_valores = "4."
+
+        else:
+
+            numero_secao_detalhes = "2."
+            numero_secao_valores = "3."
+
         st.subheader(
-            "2. Detalhes do Orçamento"
+            f"{numero_secao_detalhes} Detalhes do Orçamento"
         )
 
         resumo_servicos = st.text_area(
@@ -2138,7 +2307,7 @@ if menu == "➕ Novo Orçamento":
         )
 
         st.subheader(
-            "3. Valores e Itens"
+            f"{numero_secao_valores} Valores e Itens"
         )
 
         itens_valores = st.text_area(
@@ -2160,309 +2329,368 @@ if menu == "➕ Novo Orçamento":
         if submitted:
 
             # ==========================================================
-            # VALIDAÇÃO DOS CAMPOS
+            # NORMALIZAÇÃO DOS CAMPOS ESPECÍFICOS
             # ==========================================================
 
-            if not (
-                nome_cliente
-                and whatsapp_cliente
-                and resumo_servicos
-                and itens_valores
-            ):
+            placa_veiculo = (
+                str(placa_veiculo or "")
+                .strip()
+                .upper()
+            )
+
+            marca_selecionada = (
+                str(marca_veiculo or "")
+                .strip()
+            )
+
+            modelo_veiculo = (
+                str(modelo_veiculo or "")
+                .strip()
+            )
+
+            campos_base_ok = (
+                bool(nome_cliente)
+                and bool(whatsapp_cliente)
+                and bool(resumo_servicos)
+                and bool(itens_valores)
+            )
+
+            campos_funilaria_ok = True
+
+            if EH_FUNILARIA:
+
+                campos_funilaria_ok = (
+                    bool(placa_veiculo)
+                    and
+                    marca_selecionada
+                    != "Selecione a marca"
+                    and
+                    bool(modelo_veiculo)
+                )
+
+                if not campos_funilaria_ok:
+
+                    st.error(
+                        "Preencha a placa, selecione a marca "
+                        "e informe o modelo do veículo."
+                    )
+
+            if campos_base_ok and campos_funilaria_ok:
+
+                if not WEBAPP_URL:
+
+                    st.error(
+                        "A URL do Apps Script "
+                        "não está configurada."
+                    )
+
+                elif not INSTANCE_NAME_LOGADA:
+
+                    st.error(
+                        "🔴 **WhatsApp não configurado**"
+                    )
+
+                    st.info(
+                        "Conecte um WhatsApp em "
+                        "**📱 Conectar WhatsApp** "
+                        "antes de criar o orçamento."
+                    )
+
+                else:
+
+                    # ======================================================
+                    # VERIFICAÇÃO EM TEMPO REAL
+                    # ======================================================
+                    #
+                    # IMPORTANTE:
+                    # esta consulta NÃO usa cache.
+                    #
+                    # O indicador exibido na tela pode estar alguns segundos
+                    # atrasado. Já esta consulta representa o estado real
+                    # no momento em que o usuário clicou em CRIAR ORÇAMENTO.
+                    #
+                    # ======================================================
+
+                    with st.spinner(
+                        "Verificando conexão do WhatsApp..."
+                    ):
+
+                        verificacao_wa = (
+                            checar_whatsapp_em_tempo_real(
+                                INSTANCE_NAME_LOGADA
+                            )
+                        )
+
+                    if not verificacao_wa[
+                        "conectado"
+                    ]:
+
+                        st.error(
+                            "🔴 **WhatsApp não conectado**"
+                        )
+
+                        st.info(
+                            "Conecte ou reconecte o WhatsApp "
+                            "em **📱 Conectar WhatsApp** "
+                            "e tente novamente."
+                        )
+
+                        # NÃO chama o Apps Script.
+                        # NÃO cria orçamento.
+                        # NÃO consome processamento.
+
+                    else:
+
+                        # ==================================================
+                        # CONEXÃO CONFIRMADA
+                        # ==================================================
+
+                        with st.spinner(
+                            "Registrando e processando proposta..."
+                        ):
+
+                            try:
+
+                                payload = {
+
+                                    "nome": (
+                                        nome_cliente
+                                    ),
+
+                                    "whatsapp": (
+                                        whatsapp_cliente
+                                    ),
+
+                                    "resumo": (
+                                        resumo_servicos
+                                    ),
+
+                                    "itens": (
+                                        itens_valores
+                                    ),
+
+                                    # Campos de veículo:
+                                    # preenchidos apenas para Funilaria e Pintura.
+                                    "placa": (
+                                        placa_veiculo
+                                        if EH_FUNILARIA
+                                        else ""
+                                    ),
+
+                                    "marca": (
+                                        marca_selecionada
+                                        if EH_FUNILARIA
+                                        else ""
+                                    ),
+
+                                    "modelo": (
+                                        modelo_veiculo
+                                        if EH_FUNILARIA
+                                        else ""
+                                    ),
+
+                                    # Instância efetiva:
+                                    # usuário → empresa
+                                    "instance": (
+                                        INSTANCE_NAME_LOGADA
+                                    ),
+
+                                    "empresa_id": (
+                                        EMPRESA_ID_LOGADA
+                                    ),
+
+                                    "vendedor": (
+                                        NOME_USUARIO_LOGADO
+                                    ),
+
+                                    "usuario_id": (
+                                        st.session_state.get(
+                                            "usuario_id",
+                                            ""
+                                        )
+                                    ),
+
+                                }
+
+                                response = (
+                                    requests.post(
+                                        WEBAPP_URL,
+                                        json=payload,
+                                        timeout=30
+                                    )
+                                )
+
+                                # ==================================================
+                                # TENTA INTERPRETAR JSON
+                                # ==================================================
+
+                                try:
+
+                                    resposta_json = (
+                                        response.json()
+                                    )
+
+                                except Exception:
+
+                                    resposta_json = None
+
+                                # ==================================================
+                                # SUCESSO
+                                # ==================================================
+
+                                if (
+                                    response.status_code
+                                    == 200
+                                    and
+                                    isinstance(
+                                        resposta_json,
+                                        dict
+                                    )
+                                    and
+                                    resposta_json.get(
+                                        "status"
+                                    )
+                                    == "success"
+                                ):
+
+                                    st.success(
+                                        f"✅ Orçamento para "
+                                        f"**{nome_cliente}** "
+                                        "registrado com sucesso!"
+                                    )
+
+                                # ==================================================
+                                # FALHA DE WHATSAPP / GOOGLE HTML
+                                # ==================================================
+
+                                elif (
+                                    isinstance(
+                                        response.text,
+                                        str
+                                    )
+                                    and
+                                    (
+                                        "<html"
+                                        in response.text.lower()
+                                        or
+                                        "<!doctype"
+                                        in response.text.lower()
+                                        or
+                                        "page not found"
+                                        in response.text.lower()
+                                    )
+                                ):
+
+                                    st.error(
+                                        "🔴 **Não foi possível "
+                                        "concluir o envio.**"
+                                    )
+
+                                    st.info(
+                                        "O WhatsApp pode ter sido "
+                                        "desconectado durante o "
+                                        "processamento. Verifique "
+                                        "a conexão e tente novamente."
+                                    )
+
+                                # ==================================================
+                                # OUTRAS RESPOSTAS HTTP
+                                # ==================================================
+
+                                else:
+
+                                    mensagem_api = ""
+
+                                    if (
+                                        isinstance(
+                                            resposta_json,
+                                            dict
+                                        )
+                                    ):
+
+                                        mensagem_api = str(
+                                            resposta_json.get(
+                                                "message",
+                                                ""
+                                            )
+                                        ).strip()
+
+                                        if not mensagem_api:
+
+                                            mensagem_api = str(
+                                                resposta_json.get(
+                                                    "erro",
+                                                    ""
+                                                )
+                                            ).strip()
+
+                                    if mensagem_api:
+
+                                        st.error(
+                                            f"Erro ao registrar: "
+                                            f"{mensagem_api}"
+                                        )
+
+                                    else:
+
+                                        st.error(
+                                            "Não foi possível "
+                                            "registrar o orçamento."
+                                        )
+
+                                        st.info(
+                                            "Verifique o WhatsApp "
+                                            "e tente novamente."
+                                        )
+
+                            # ======================================================
+                            # ERRO DE TIMEOUT / CONEXÃO
+                            # ======================================================
+
+                            except requests.exceptions.Timeout:
+
+                                st.error(
+                                    "⏱️ **Tempo limite excedido.**"
+                                )
+
+                                st.info(
+                                    "O processamento demorou "
+                                    "mais que o esperado. "
+                                    "Verifique o WhatsApp e "
+                                    "consulte o painel antes "
+                                    "de tentar novamente."
+                                )
+
+                            except requests.exceptions.ConnectionError:
+
+                                st.error(
+                                    "🌐 **Não foi possível "
+                                    "comunicar com o Apps Script.**"
+                                )
+
+                                st.info(
+                                    "Verifique sua conexão "
+                                    "com a internet e tente "
+                                    "novamente."
+                                )
+
+                            except Exception as e:
+
+                                st.error(
+                                    "Não foi possível concluir "
+                                    "o processamento do orçamento."
+                                )
+
+                                st.caption(
+                                    f"Detalhe técnico: {e}"
+                                )
+
+            elif not campos_base_ok:
 
                 st.error(
                     "Por favor, preencha todos "
                     "os campos obrigatórios (*)."
                 )
-
-            elif not WEBAPP_URL:
-
-                st.error(
-                    "A URL do Apps Script "
-                    "não está configurada."
-                )
-
-            elif not INSTANCE_NAME_LOGADA:
-
-                st.error(
-                    "🔴 **WhatsApp não configurado**"
-                )
-
-                st.info(
-                    "Conecte um WhatsApp em "
-                    "**📱 Conectar WhatsApp** "
-                    "antes de criar o orçamento."
-                )
-
-            else:
-
-                # ======================================================
-                # VERIFICAÇÃO EM TEMPO REAL
-                # ======================================================
-                #
-                # IMPORTANTE:
-                # esta consulta NÃO usa cache.
-                #
-                # O indicador exibido na tela pode estar alguns segundos
-                # atrasado. Já esta consulta representa o estado real
-                # no momento em que o usuário clicou em CRIAR ORÇAMENTO.
-                #
-                # ======================================================
-
-                with st.spinner(
-                    "Verificando conexão do WhatsApp..."
-                ):
-
-                    verificacao_wa = (
-                        checar_whatsapp_em_tempo_real(
-                            INSTANCE_NAME_LOGADA
-                        )
-                    )
-
-                if not verificacao_wa[
-                    "conectado"
-                ]:
-
-                    st.error(
-                        "🔴 **WhatsApp não conectado**"
-                    )
-
-                    st.info(
-                        "Conecte ou reconecte o WhatsApp "
-                        "em **📱 Conectar WhatsApp** "
-                        "e tente novamente."
-                    )
-
-                    # NÃO chama o Apps Script.
-                    # NÃO cria orçamento.
-                    # NÃO consome processamento.
-
-                else:
-
-                    # ==================================================
-                    # CONEXÃO CONFIRMADA
-                    # ==================================================
-
-                    with st.spinner(
-                        "Registrando e processando proposta..."
-                    ):
-
-                        try:
-
-                            payload = {
-
-                                "nome": (
-                                    nome_cliente
-                                ),
-
-                                "whatsapp": (
-                                    whatsapp_cliente
-                                ),
-
-                                "resumo": (
-                                    resumo_servicos
-                                ),
-
-                                "itens": (
-                                    itens_valores
-                                ),
-
-                                # Instância efetiva:
-                                # usuário → empresa
-                                "instance": (
-                                    INSTANCE_NAME_LOGADA
-                                ),
-
-                                "empresa_id": (
-                                    EMPRESA_ID_LOGADA
-                                ),
-
-                                "vendedor": (
-                                    NOME_USUARIO_LOGADO
-                                ),
-
-                                "usuario_id": (
-                                    st.session_state.get(
-                                        "usuario_id",
-                                        ""
-                                    )
-                                ),
-
-                            }
-
-                            response = (
-                                requests.post(
-                                    WEBAPP_URL,
-                                    json=payload,
-                                    timeout=30
-                                )
-                            )
-
-                            # ==================================================
-                            # TENTA INTERPRETAR JSON
-                            # ==================================================
-
-                            try:
-
-                                resposta_json = (
-                                    response.json()
-                                )
-
-                            except Exception:
-
-                                resposta_json = None
-
-                            # ==================================================
-                            # SUCESSO
-                            # ==================================================
-
-                            if (
-                                response.status_code
-                                == 200
-                                and
-                                isinstance(
-                                    resposta_json,
-                                    dict
-                                )
-                                and
-                                resposta_json.get(
-                                    "status"
-                                )
-                                == "success"
-                            ):
-
-                                st.success(
-                                    f"✅ Orçamento para "
-                                    f"**{nome_cliente}** "
-                                    "registrado com sucesso!"
-                                )
-
-                            # ==================================================
-                            # FALHA DE WHATSAPP / GOOGLE HTML
-                            # ==================================================
-
-                            elif (
-                                isinstance(
-                                    response.text,
-                                    str
-                                )
-                                and
-                                (
-                                    "<html"
-                                    in response.text.lower()
-                                    or
-                                    "<!doctype"
-                                    in response.text.lower()
-                                    or
-                                    "page not found"
-                                    in response.text.lower()
-                                )
-                            ):
-
-                                st.error(
-                                    "🔴 **Não foi possível "
-                                    "concluir o envio.**"
-                                )
-
-                                st.info(
-                                    "O WhatsApp pode ter sido "
-                                    "desconectado durante o "
-                                    "processamento. Verifique "
-                                    "a conexão e tente novamente."
-                                )
-
-                            # ==================================================
-                            # OUTRAS RESPOSTAS HTTP
-                            # ==================================================
-
-                            else:
-
-                                mensagem_api = ""
-
-                                if (
-                                    isinstance(
-                                        resposta_json,
-                                        dict
-                                    )
-                                ):
-
-                                    mensagem_api = str(
-                                        resposta_json.get(
-                                            "message",
-                                            ""
-                                        )
-                                    ).strip()
-
-                                    if not mensagem_api:
-
-                                        mensagem_api = str(
-                                            resposta_json.get(
-                                                "erro",
-                                                ""
-                                            )
-                                        ).strip()
-
-                                if mensagem_api:
-
-                                    st.error(
-                                        f"Erro ao registrar: "
-                                        f"{mensagem_api}"
-                                    )
-
-                                else:
-
-                                    st.error(
-                                        "Não foi possível "
-                                        "registrar o orçamento."
-                                    )
-
-                                    st.info(
-                                        "Verifique o WhatsApp "
-                                        "e tente novamente."
-                                    )
-
-                        # ======================================================
-                        # ERRO DE TIMEOUT / CONEXÃO
-                        # ======================================================
-
-                        except requests.exceptions.Timeout:
-
-                            st.error(
-                                "⏱️ **Tempo limite excedido.**"
-                            )
-
-                            st.info(
-                                "O processamento demorou "
-                                "mais que o esperado. "
-                                "Verifique o WhatsApp e "
-                                "consulte o painel antes "
-                                "de tentar novamente."
-                            )
-
-                        except requests.exceptions.ConnectionError:
-
-                            st.error(
-                                "🌐 **Não foi possível "
-                                "comunicar com o Apps Script.**"
-                            )
-
-                            st.info(
-                                "Verifique sua conexão "
-                                "com a internet e tente "
-                                "novamente."
-                            )
-
-                        except Exception as e:
-
-                            st.error(
-                                "Não foi possível concluir "
-                                "o processamento do orçamento."
-                            )
-
-                            st.caption(
-                                f"Detalhe técnico: {e}"
-                            )
-
 
 # =================================================================================
 # PAINEL DE ORÇAMENTOS
