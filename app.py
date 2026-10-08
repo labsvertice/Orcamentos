@@ -3392,6 +3392,15 @@ elif menu == "📋 Painel de Orçamentos":
             df_dados.columns[2]
         )
 
+        col_placa = next(
+            (
+                c
+                for c in df_dados.columns
+                if "placa" in c.lower()
+            ),
+            None
+        )
+
         col_resumo = next(
             (
                 c
@@ -3874,6 +3883,39 @@ elif menu == "📋 Painel de Orçamentos":
                         "Todos"
                     )
 
+            # ------------------------------------------------------------------
+            # FILTROS DE PESQUISA
+            # ------------------------------------------------------------------
+
+            (
+                col_pesquisa1,
+                col_pesquisa2,
+                col_pesquisa3
+            ) = st.columns(
+                [1, 1, 1]
+            )
+
+            with col_pesquisa1:
+
+                filtro_cliente = st.text_input(
+                    "Cliente",
+                    placeholder="Digite o nome do cliente",
+                ).strip()
+
+            with col_pesquisa2:
+
+                filtro_placa = st.text_input(
+                    "Nº Placa",
+                    placeholder="Ex: ABC1D23",
+                ).strip()
+
+            with col_pesquisa3:
+
+                filtro_telefone = st.text_input(
+                    "Telefone",
+                    placeholder="Digite o telefone",
+                ).strip()
+
             agora = (
                 pd.Timestamp.now()
             )
@@ -4037,6 +4079,109 @@ elif menu == "📋 Painel de Orçamentos":
                             "Vendedor_Exibicao"
                         ].eq(
                             vendedor_filtro
+                        )
+                    ]
+                    .copy()
+                )
+
+            # ------------------------------------------------------------------
+            # PESQUISA POR CLIENTE, PLACA E TELEFONE
+            # ------------------------------------------------------------------
+
+            if filtro_cliente:
+
+                df_filtrado = (
+                    df_filtrado[
+                        df_filtrado[
+                            col_nome
+                        ]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .str.contains(
+                            filtro_cliente.lower(),
+                            na=False,
+                            regex=False,
+                        )
+                    ]
+                    .copy()
+                )
+
+            if filtro_placa:
+
+                if col_placa:
+
+                    placa_busca = re.sub(
+                        r"[^A-Za-z0-9]",
+                        "",
+                        filtro_placa
+                    ).upper()
+
+                    placa_coluna = (
+                        df_filtrado[
+                            col_placa
+                        ]
+                        .fillna("")
+                        .astype(str)
+                        .map(
+                            lambda valor: re.sub(
+                                r"[^A-Za-z0-9]",
+                                "",
+                                valor
+                            ).upper()
+                        )
+                    )
+
+                    df_filtrado = (
+                        df_filtrado[
+                            placa_coluna
+                            .str.contains(
+                                placa_busca,
+                                na=False,
+                                regex=False,
+                            )
+                        ]
+                        .copy()
+                    )
+
+                else:
+
+                    df_filtrado = (
+                        df_filtrado.iloc[0:0]
+                        .copy()
+                    )
+
+            if filtro_telefone:
+
+                telefone_busca = re.sub(
+                    r"\D",
+                    "",
+                    filtro_telefone
+                )
+
+                telefone_coluna = (
+                    df_filtrado[
+                        col_whats
+                    ]
+                    .fillna("")
+                    .astype(str)
+                    .map(
+                        lambda valor: re.sub(
+                            r"\D",
+                            "",
+                            valor
+                        )
+                    )
+                )
+
+                df_filtrado = (
+                    df_filtrado[
+                        telefone_coluna
+                        .str.contains(
+                            telefone_busca,
+                            na=False,
+                            regex=False,
                         )
                     ]
                     .copy()
