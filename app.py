@@ -3817,30 +3817,34 @@ elif menu == "📋 Painel de Orçamentos":
                 "🔎 Filtros"
             )
 
-            (
-                col_filtro1,
-                col_filtro2,
-                col_filtro3
-            ) = st.columns(
-                [1, 1, 1]
-            )
+            # A área Padrão mantém o comportamento anterior.
+            # Funilaria e Pintura usa formulário + botões para facilitar o uso
+            # no celular e evitar aplicar cada busca enquanto o usuário digita.
+            if eh_funilaria_pintura:
 
-            with col_filtro1:
+                # ==============================================================
+                # RESET DOS FILTROS (executado antes dos widgets serem criados)
+                # ==============================================================
 
-                periodo = st.selectbox(
-                    "Período",
-                    [
-                        "Este mês",
-                        "Hoje",
-                        "Últimos 7 dias",
-                        "Últimos 30 dias",
-                        "Este ano",
-                        "Todo o período",
-                    ],
-                    index=0,
-                )
+                if st.session_state.pop(
+                    "_limpar_filtros_funilaria",
+                    False
+                ):
 
-            with col_filtro2:
+                    for chave in [
+                        "filtro_periodo_funilaria",
+                        "filtro_intervalo_funilaria",
+                        "filtro_vendedor_funilaria",
+                        "filtro_cliente_funilaria",
+                        "filtro_placa_funilaria",
+                        "filtro_telefone_funilaria",
+                        "filtro_aprovado_funilaria",
+                    ]:
+
+                        st.session_state.pop(
+                            chave,
+                            None
+                        )
 
                 data_min = (
                     df_base[
@@ -3860,25 +3864,15 @@ elif menu == "📋 Painel de Orçamentos":
                     pd.isna(data_max)
                 ):
 
-                    data_min = (
-                        pd.Timestamp.now()
-                    )
+                    data_min = pd.Timestamp.now()
+                    data_max = pd.Timestamp.now()
 
-                    data_max = (
-                        pd.Timestamp.now()
-                    )
-
-                intervalo_datas = (
-                    st.date_input(
-                        "Intervalo",
-                        value=(
-                            data_min.date(),
-                            data_max.date(),
-                        ),
-                    )
+                intervalo_default = (
+                    data_min.date(),
+                    data_max.date(),
                 )
 
-            with col_filtro3:
+                vendedores = []
 
                 if (
                     perfil_normalizado
@@ -3904,81 +3898,285 @@ elif menu == "📋 Painel de Orçamentos":
                         ]
                     )
 
-                    vendedor_filtro = (
-                        st.selectbox(
-                            "Vendedor",
+                if "filtro_periodo_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_periodo_funilaria"
+                    ] = "Este mês"
+
+                if "filtro_intervalo_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_intervalo_funilaria"
+                    ] = intervalo_default
+
+                if "filtro_vendedor_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_vendedor_funilaria"
+                    ] = "Todos"
+
+                if (
+                    st.session_state[
+                        "filtro_vendedor_funilaria"
+                    ]
+                    not in ["Todos"] + vendedores
+                ):
+                    st.session_state[
+                        "filtro_vendedor_funilaria"
+                    ] = "Todos"
+
+                if "filtro_cliente_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_cliente_funilaria"
+                    ] = ""
+
+                if "filtro_placa_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_placa_funilaria"
+                    ] = ""
+
+                if "filtro_telefone_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_telefone_funilaria"
+                    ] = ""
+
+                if "filtro_aprovado_funilaria" not in st.session_state:
+                    st.session_state[
+                        "filtro_aprovado_funilaria"
+                    ] = "Todos"
+
+                with st.form(
+                    "form_filtros_funilaria",
+                    clear_on_submit=False,
+                ):
+
+                    (
+                        col_filtro1,
+                        col_filtro2,
+                        col_filtro3,
+                    ) = st.columns(
+                        [1, 1, 1]
+                    )
+
+                    with col_filtro1:
+
+                        periodo = st.selectbox(
+                            "Período",
                             [
-                                "Todos"
-                            ]
-                            + vendedores,
-                            index=0,
+                                "Este mês",
+                                "Hoje",
+                                "Últimos 7 dias",
+                                "Últimos 30 dias",
+                                "Este ano",
+                                "Todo o período",
+                            ],
+                            key="filtro_periodo_funilaria",
                         )
+
+                    with col_filtro2:
+
+                        intervalo_datas = st.date_input(
+                            "Intervalo",
+                            key="filtro_intervalo_funilaria",
+                        )
+
+                    with col_filtro3:
+
+                        if perfil_normalizado == "administrador":
+
+                            vendedor_filtro = st.selectbox(
+                                "Vendedor",
+                                ["Todos"] + vendedores,
+                                key="filtro_vendedor_funilaria",
+                            )
+
+                        else:
+
+                            vendedor_filtro = "Todos"
+
+                    (
+                        col_pesquisa1,
+                        col_pesquisa2,
+                        col_pesquisa3,
+                        col_pesquisa4,
+                    ) = st.columns(
+                        [1, 1, 1, 1]
                     )
 
-                else:
+                    with col_pesquisa1:
 
-                    vendedor_filtro = (
-                        "Todos"
+                        filtro_cliente = st.text_input(
+                            "Cliente",
+                            placeholder="Digite o nome do cliente",
+                            key="filtro_cliente_funilaria",
+                        ).strip()
+
+                    with col_pesquisa2:
+
+                        filtro_placa = st.text_input(
+                            "Nº Placa",
+                            placeholder="Ex: ABC1D23",
+                            key="filtro_placa_funilaria",
+                        ).strip()
+
+                    with col_pesquisa3:
+
+                        filtro_telefone = st.text_input(
+                            "Telefone",
+                            placeholder="Digite o telefone",
+                            key="filtro_telefone_funilaria",
+                        ).strip()
+
+                    with col_pesquisa4:
+
+                        filtro_aprovado = st.selectbox(
+                            "Aprovado",
+                            ["Todos", "NÃO", "SIM"],
+                            key="filtro_aprovado_funilaria",
+                        )
+
+                    (
+                        col_acao1,
+                        col_acao2,
+                    ) = st.columns(
+                        [1, 1]
                     )
 
-            # ------------------------------------------------------------------
-            # FILTROS DE PESQUISA — SOMENTE FUNILARIA E PINTURA
-            # ------------------------------------------------------------------
+                    with col_acao1:
 
-            area_atuacao_logada = (
-                str(
-                    st.session_state.get(
-                        "area_atuacao",
-                        "Padrão"
-                    )
-                    or "Padrão"
-                )
-                .strip()
-                .casefold()
-            )
+                        aplicar_filtros = st.form_submit_button(
+                            "🔎 Filtrar",
+                            use_container_width=True,
+                        )
 
-            eh_funilaria_pintura = (
-                area_atuacao_logada
-                == "funilaria e pintura"
-            )
+                    with col_acao2:
 
-            filtro_cliente = ""
-            filtro_placa = ""
-            filtro_telefone = ""
+                        limpar_filtros = st.form_submit_button(
+                            "🧹 Limpar filtros",
+                            use_container_width=True,
+                        )
 
-            if eh_funilaria_pintura:
+                if limpar_filtros:
+
+                    st.session_state[
+                        "_limpar_filtros_funilaria"
+                    ] = True
+
+                    st.rerun()
+
+                # O formulário funciona como um botão de aplicação.
+                # Após a primeira carga, os valores padrão já são usados.
+                # Depois que o usuário clicar em Filtrar, os valores atuais
+                # passam a ser utilizados no restante do painel.
+
+            else:
 
                 (
-                    col_pesquisa1,
-                    col_pesquisa2,
-                    col_pesquisa3
+                    col_filtro1,
+                    col_filtro2,
+                    col_filtro3
                 ) = st.columns(
                     [1, 1, 1]
                 )
 
-                with col_pesquisa1:
+                with col_filtro1:
 
-                    filtro_cliente = st.text_input(
-                        "Cliente",
-                        placeholder="Digite o nome do cliente",
-                        key="filtro_painel_cliente_funilaria",
-                    ).strip()
+                    periodo = st.selectbox(
+                        "Período",
+                        [
+                            "Este mês",
+                            "Hoje",
+                            "Últimos 7 dias",
+                            "Últimos 30 dias",
+                            "Este ano",
+                            "Todo o período",
+                        ],
+                        index=0,
+                    )
 
-                with col_pesquisa2:
+                with col_filtro2:
 
-                    filtro_placa = st.text_input(
-                        "Nº Placa",
-                        placeholder="Ex: ABC1D23",
-                        key="filtro_painel_placa_funilaria",
-                    ).strip()
+                    data_min = (
+                        df_base[
+                            "Data_Parsed"
+                        ].min()
+                    )
 
-                with col_pesquisa3:
+                    data_max = (
+                        df_base[
+                            "Data_Parsed"
+                        ].max()
+                    )
 
-                    filtro_telefone = st.text_input(
-                        "Telefone",
-                        placeholder="Digite o telefone",
-                        key="filtro_painel_telefone_funilaria",
-                    ).strip()
+                    if (
+                        pd.isna(data_min)
+                        or
+                        pd.isna(data_max)
+                    ):
+
+                        data_min = (
+                            pd.Timestamp.now()
+                        )
+
+                        data_max = (
+                            pd.Timestamp.now()
+                        )
+
+                    intervalo_datas = (
+                        st.date_input(
+                            "Intervalo",
+                            value=(
+                                data_min.date(),
+                                data_max.date(),
+                            ),
+                        )
+                    )
+
+                with col_filtro3:
+
+                    if (
+                        perfil_normalizado
+                        == "administrador"
+                        and
+                        col_vendedor
+                        and
+                        not df_base.empty
+                    ):
+
+                        vendedores = sorted(
+                            [
+                                v
+                                for v in
+                                df_base[
+                                    "Vendedor_Exibicao"
+                                ]
+                                .dropna()
+                                .astype(str)
+                                .str.strip()
+                                .unique()
+                                if v
+                            ]
+                        )
+
+                        vendedor_filtro = (
+                            st.selectbox(
+                                "Vendedor",
+                                [
+                                    "Todos"
+                                ]
+                                + vendedores,
+                                index=0,
+                            )
+                        )
+
+                    else:
+
+                        vendedor_filtro = (
+                            "Todos"
+                        )
+
+                filtro_cliente = ""
+                filtro_placa = ""
+                filtro_telefone = ""
+                filtro_aprovado = "Todos"
 
             agora = (
                 pd.Timestamp.now()
@@ -4149,7 +4347,26 @@ elif menu == "📋 Painel de Orçamentos":
                 )
 
             # ------------------------------------------------------------------
-            # PESQUISA POR CLIENTE, PLACA E TELEFONE — FUNILARIA E PINTURA
+            # COLUNA DE APROVAÇÃO — usada no filtro e no histórico
+            # ------------------------------------------------------------------
+
+            col_aprovado_filtro = next(
+                (
+                    c
+                    for c in df_filtrado.columns
+                    if str(c).strip().lower()
+                    in {
+                        "orcamento_aprovado",
+                        "orçamento_aprovado",
+                        "orcamento aprovado",
+                        "orçamento aprovado",
+                    }
+                ),
+                None
+            )
+
+            # ------------------------------------------------------------------
+            # PESQUISA POR CLIENTE, PLACA, TELEFONE E APROVAÇÃO — FUNILARIA
             # ------------------------------------------------------------------
 
             if eh_funilaria_pintura:
@@ -4248,6 +4465,40 @@ elif menu == "📋 Painel de Orçamentos":
                                 telefone_busca,
                                 na=False,
                                 regex=False,
+                            )
+                        ]
+                        .copy()
+                    )
+
+                if filtro_aprovado != "Todos":
+
+                    if col_aprovado_filtro:
+
+                        aprovados_coluna = (
+                            df_filtrado[
+                                col_aprovado_filtro
+                            ]
+                            .fillna("NÃO")
+                            .astype(str)
+                            .str.strip()
+                            .str.upper()
+                            .replace({
+                                "NAO": "NÃO",
+                                "": "NÃO",
+                            })
+                        )
+
+                    else:
+
+                        aprovados_coluna = pd.Series(
+                            "NÃO",
+                            index=df_filtrado.index
+                        )
+
+                    df_filtrado = (
+                        df_filtrado[
+                            aprovados_coluna.eq(
+                                filtro_aprovado
                             )
                         ]
                         .copy()
@@ -4888,10 +5139,10 @@ elif menu == "📋 Painel de Orçamentos":
             )
 
             df_exibir["Data do Envio"] = (
-                df_historico["Data_Parsed"]
-                .dt.strftime("%d/%m/%Y")
-                .fillna("")
-                .to_numpy()
+                pd.to_datetime(
+                    df_historico["Data_Parsed"],
+                    errors="coerce"
+                ).dt.normalize().to_numpy()
             )
 
             df_exibir["Cliente"] = (
@@ -4965,36 +5216,37 @@ elif menu == "📋 Painel de Orçamentos":
 
             config_colunas = {
 
-                "Data do Envio": st.column_config.TextColumn(
+                "Data do Envio": st.column_config.DatetimeColumn(
                     "Data do Envio",
-                    width="small",
+                    format="DD/MM/YYYY",
+                    width=110,
                 ),
 
                 "Cliente": st.column_config.TextColumn(
                     "Cliente",
-                    width="medium",
+                    width=190,
                 ),
 
                 "Resumo do Serviço": st.column_config.TextColumn(
                     "Resumo do Serviço",
-                    width="large",
+                    width=330,
                 ),
 
                 "Valor Total": st.column_config.TextColumn(
                     "Valor Total",
-                    width="medium",
+                    width=120,
                 ),
 
                 "Status": st.column_config.TextColumn(
                     "Status",
-                    width="small",
+                    width=100,
                 ),
 
                 "Aprovado": st.column_config.SelectboxColumn(
                     "Aprovado",
                     options=["NÃO", "SIM"],
                     default="NÃO",
-                    width="small",
+                    width=105,
                 ),
             }
 
@@ -5002,14 +5254,14 @@ elif menu == "📋 Painel de Orçamentos":
 
                 config_colunas["Placa"] = st.column_config.TextColumn(
                     "Placa",
-                    width="small",
+                    width=95,
                 )
 
                 config_colunas["WhatsApp"] = st.column_config.LinkColumn(
                     "WhatsApp",
                     display_text="📲 WhatsApp",
                     validate=r"^https://wa\.me/.*$",
-                    width="small",
+                    width=125,
                 )
 
             if col_pdf:
@@ -5019,14 +5271,14 @@ elif menu == "📋 Painel de Orçamentos":
                     help="Clique para abrir o PDF da proposta.",
                     display_text="📥 Abrir PDF",
                     validate="^https?://.*$",
-                    width="medium",
+                    width=135,
                 )
 
             else:
 
                 config_colunas["Proposta (PDF)"] = st.column_config.TextColumn(
                     "Proposta (PDF)",
-                    width="medium",
+                    width=135,
                 )
 
             edited_df = st.data_editor(
