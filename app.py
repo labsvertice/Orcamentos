@@ -607,15 +607,22 @@ try:
 
         html="""
             <div class="pi-camera-wrap">
-                <button id="pi-camera-button" type="button">
-                    📷 Adicionar foto
-                </button>
+                <div class="pi-camera-toolbar">
+                    <button id="pi-camera-button" type="button">
+                        📷 Adicionar foto
+                    </button>
 
-                <div id="pi-camera-count" class="pi-camera-count">
-                    Fotos adicionadas: 0 / 6
+                    <div id="pi-camera-count" class="pi-camera-count">
+                        Fotos adicionadas: 0 / 6
+                    </div>
                 </div>
 
-                <div id="pi-camera-grid" class="pi-camera-grid"></div>
+                <div class="pi-camera-gallery">
+                    <div id="pi-camera-grid" class="pi-camera-grid"></div>
+                    <div id="pi-camera-empty" class="pi-camera-empty">
+                        Nenhuma foto adicionada ainda.
+                    </div>
+                </div>
 
                 <input
                     id="pi-camera-input"
@@ -632,6 +639,15 @@ try:
                 width: 100%;
                 box-sizing: border-box;
                 font-family: var(--st-font, sans-serif);
+                background: transparent;
+            }
+
+            .pi-camera-toolbar {
+                position: sticky;
+                top: 0;
+                z-index: 20;
+                padding: 2px 0 10px 0;
+                background: var(--st-background-color, #FAFAFA);
             }
 
             #pi-camera-button {
@@ -646,6 +662,7 @@ try:
                 cursor: pointer;
                 padding: 10px 18px;
                 transition: all 0.2s ease;
+                box-shadow: 0 2px 8px rgba(22, 39, 31, 0.06);
             }
 
             #pi-camera-button:hover {
@@ -659,26 +676,37 @@ try:
             }
 
             .pi-camera-count {
-                margin-top: 10px;
-                margin-bottom: 10px;
+                margin-top: 8px;
                 color: var(--st-secondary-text-color, #5E6D64);
-                font-size: 15px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .pi-camera-gallery {
+                margin-top: 4px;
+                max-height: 420px;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 2px 2px 6px 2px;
+                scroll-behavior: smooth;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
             }
 
             .pi-camera-grid {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px;
-                margin-top: 8px;
+                gap: 10px;
             }
 
             .pi-camera-card {
                 position: relative;
                 overflow: hidden;
-                border-radius: 10px;
+                border-radius: 12px;
                 border: 1px solid #D1D1D1;
                 background: #F4F4F4;
                 aspect-ratio: 4 / 3;
+                box-shadow: 0 2px 8px rgba(22, 39, 31, 0.05);
             }
 
             .pi-camera-card img {
@@ -696,18 +724,29 @@ try:
                 height: 30px;
                 border: none;
                 border-radius: 50%;
-                background: rgba(0,0,0,0.65);
+                background: rgba(0,0,0,0.68);
                 color: #FFFFFF;
-                font-size: 17px;
+                font-size: 18px;
                 line-height: 30px;
                 text-align: center;
                 cursor: pointer;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+            }
+
+            .pi-camera-empty {
+                padding: 12px 4px 4px 4px;
+                color: var(--st-secondary-text-color, #5E6D64);
+                font-size: 13px;
             }
 
             @media (max-width: 700px) {
+                .pi-camera-gallery {
+                    max-height: 360px;
+                }
+
                 .pi-camera-grid {
                     grid-template-columns: repeat(2, minmax(0, 1fr));
-                    gap: 9px;
+                    gap: 8px;
                 }
             }
         """,
@@ -720,6 +759,7 @@ try:
                 const input = parentElement.querySelector('#pi-camera-input');
                 const count = parentElement.querySelector('#pi-camera-count');
                 const grid = parentElement.querySelector('#pi-camera-grid');
+                const empty = parentElement.querySelector('#pi-camera-empty');
 
                 const MAX_FOTOS = 6;
                 const LIMITE_BYTES = 450 * 1024;
@@ -732,6 +772,7 @@ try:
                 function atualizarInterface() {
                     count.textContent = `Fotos adicionadas: ${fotos.length} / ${MAX_FOTOS}`;
                     button.disabled = fotos.length >= MAX_FOTOS;
+                    empty.style.display = fotos.length ? 'none' : 'block';
 
                     grid.innerHTML = '';
 
@@ -902,7 +943,7 @@ def carregar_fotos_mobile_component():
         on_photos_change=lambda: None,
         key="camera_nativa_mobile",
         width="stretch",
-        height=max(105, 105 + min(len(fotos_atuais), 6) * 120),
+        height=520,
     )
 
     fotos_resultado = getattr(
