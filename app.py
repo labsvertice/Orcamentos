@@ -2233,13 +2233,54 @@ def salvar_aprovacao_orcamento(linhas_valores):
 
         service = obter_google_sheets_service()
 
+        # Localiza a coluna pelo cabeçalho para não depender permanentemente
+        # da letra P caso novas colunas sejam adicionadas no futuro.
+        cabecalho = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Form_Responses!1:1",
+        ).execute().get("values", [[]])[0]
+
+        mapa_cabecalho = {
+            str(valor).strip().lower(): indice + 1
+            for indice, valor in enumerate(cabecalho)
+        }
+
+        candidatos = {
+            "orcamento_aprovado",
+            "orçamento_aprovado",
+            "orcamento aprovado",
+            "orçamento aprovado",
+        }
+
+        coluna_aprovado = None
+
+        for nome, indice in mapa_cabecalho.items():
+            if nome in candidatos:
+                coluna_aprovado = indice
+                break
+
+        if coluna_aprovado is None:
+            raise RuntimeError(
+                "A coluna Orcamento_Aprovado não foi encontrada "
+                "na aba Form_Responses."
+            )
+
+        def numero_para_coluna(numero):
+            letras = ""
+            while numero:
+                numero, resto = divmod(numero - 1, 26)
+                letras = chr(65 + resto) + letras
+            return letras
+
+        letra_coluna = numero_para_coluna(coluna_aprovado)
+
         service.spreadsheets().values().batchUpdate(
             spreadsheetId=SPREADSHEET_ID,
             body={
                 "valueInputOption": "USER_ENTERED",
                 "data": [
                     {
-                        "range": f"Form_Responses!P{int(linha)}",
+                        "range": f"Form_Responses!{letra_coluna}{int(linha)}",
                         "values": [[str(valor).strip().upper()]],
                     }
                     for linha, valor in linhas_valores
@@ -2571,6 +2612,9 @@ EH_FUNILARIA = (
     AREA_ATUACAO_NORMALIZADA
     == "funilaria e pintura"
 )
+
+# Alias usado no painel para manter a regra de filtros/histórico por área.
+eh_funilaria_pintura = EH_FUNILARIA
 
 
 # =================================================================================
@@ -5084,10 +5128,21 @@ elif menu == "📋 Painel de Orçamentos":
             df_historico = (
                 df_filtrado
                 .dropna(subset=["Data_Parsed"])
+                .copy()
+            )
+
+            df_historico["Data_Parsed"] = pd.to_datetime(
+                df_historico["Data_Parsed"],
+                errors="coerce",
+            )
+
+            df_historico = (
+                df_historico
+                .dropna(subset=["Data_Parsed"])
                 .sort_values(
-                    "Data_Parsed",
+                    by="Data_Parsed",
                     ascending=False,
-                    kind="stable"
+                    kind="mergesort",
                 )
                 .copy()
             )
@@ -5130,12 +5185,16 @@ elif menu == "📋 Painel de Orçamentos":
 
             # A linha física da planilha é mantida para persistir o SIM/NÃO.
             if "__sheet_row" not in df_historico.columns:
-                df_historico["__sheet_row"] = (
-                    df_historico.index.to_series() + 2
+                raise RuntimeError(
+                    "Não foi possível identificar a linha física da proposta "
+                    "na Form_Responses."
                 )
 
+            # Usa a linha física da planilha como índice técnico do editor.
+            # Assim a alteração de Aprovado volta para a linha correta, mesmo
+            # depois de filtros e ordenação do histórico.
             df_exibir = pd.DataFrame(
-                index=df_historico["__sheet_row"]
+                index=df_historico["__sheet_row"].astype(int).to_numpy()
             )
 
             df_exibir["Data do Envio"] = (
@@ -5326,13 +5385,19 @@ elif menu == "📋 Painel de Orçamentos":
                 if not ok:
 
                     st.warning(
-                        "A tabela foi exibida, mas não foi possível salvar "
-                        "a aprovação. Verifique se a Service Account possui "
-                        "acesso de Editor ao Google Sheets."
+                        "A alteração foi feita na tela, mas não foi possível "
+                        "salvar a aprovação no Google Sheets. Verifique se a "
+                        "Service Account possui acesso de Editor à planilha."
                     )
 
                     st.caption(
                         f"Detalhe: {erro_salvar}"
+                    )
+
+                else:
+
+                    st.success(
+                        "✅ Aprovação salva no Google Sheets."
                     )
 
 
