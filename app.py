@@ -2223,8 +2223,63 @@ def limpar_sessao():
 # SALVAR APROVAÇÃO DO ORÇAMENTO
 # =================================================================================
 
+def obter_nome_aba_respostas(service):
+    """Localiza o nome real da aba que contém Form_Responses/respostas."""
+
+    try:
+        meta = (
+            service.spreadsheets()
+            .get(
+                spreadsheetId=SPREADSHEET_ID,
+                fields="sheets.properties.title"
+            )
+            .execute()
+        )
+
+        titulos = [
+            str(sheet.get("properties", {}).get("title", "")).strip()
+            for sheet in meta.get("sheets", [])
+        ]
+
+        candidatos = [
+            "Form_Responses",
+            "Respostas ao formulário 1",
+            "Respostas ao formulário",
+            "Form Responses",
+            "Respostas"
+        ]
+
+        # Primeiro tenta os nomes conhecidos.
+        for candidato in candidatos:
+            for titulo in titulos:
+                if titulo.casefold() == candidato.casefold():
+                    return titulo
+
+        # Depois tenta uma aba cujo título tenha relação clara com respostas.
+        for titulo in titulos:
+            titulo_cf = titulo.casefold()
+            if (
+                "respostas ao formulário" in titulo_cf
+                or "form_responses" in titulo_cf
+                or "form responses" in titulo_cf
+            ):
+                return titulo
+
+        # Último recurso: usa a primeira aba.
+        if titulos:
+            return titulos[0]
+
+        raise RuntimeError("Nenhuma aba foi encontrada na planilha.")
+
+    except Exception as e:
+        raise RuntimeError(
+            "Não foi possível localizar a aba de respostas: "
+            f"{e}"
+        ) from e
+
+
 def salvar_aprovacao_orcamento(linhas_valores):
-    """Atualiza Orcamento_Aprovado na Form_Responses via Google Sheets API."""
+    """Atualiza Orcamento_Aprovado na aba real de respostas."""
 
     if not linhas_valores:
         return True, None
@@ -2232,18 +2287,20 @@ def salvar_aprovacao_orcamento(linhas_valores):
     try:
 
         service = obter_google_sheets_service()
+        nome_aba = obter_nome_aba_respostas(service)
 
         # Localiza a coluna pelo cabeçalho para não depender permanentemente
         # da letra P caso novas colunas sejam adicionadas no futuro.
-        cabecalho = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID,
-            range="Form_Responses!1:1",
-        ).execute().get("values", [[]])[0]
-
-        mapa_cabecalho = {
-            str(valor).strip().lower(): indice + 1
-            for indice, valor in enumerate(cabecalho)
-        }
+        cabecalho = (
+            service.spreadsheets()
+            .values()
+            .get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"'{nome_aba}'!1:1",
+            )
+            .execute()
+            .get("values", [[]])[0]
+        )
 
         candidatos = {
             "orcamento_aprovado",
@@ -2254,15 +2311,17 @@ def salvar_aprovacao_orcamento(linhas_valores):
 
         coluna_aprovado = None
 
-        for nome, indice in mapa_cabecalho.items():
-            if nome in candidatos:
+        for indice, valor in enumerate(cabecalho, start=1):
+            if str(valor).strip().casefold() in {
+                item.casefold() for item in candidatos
+            }:
                 coluna_aprovado = indice
                 break
 
         if coluna_aprovado is None:
             raise RuntimeError(
                 "A coluna Orcamento_Aprovado não foi encontrada "
-                "na aba Form_Responses."
+                f"na aba '{nome_aba}'."
             )
 
         def numero_para_coluna(numero):
@@ -2274,19 +2333,36 @@ def salvar_aprovacao_orcamento(linhas_valores):
 
         letra_coluna = numero_para_coluna(coluna_aprovado)
 
-        service.spreadsheets().values().batchUpdate(
-            spreadsheetId=SPREADSHEET_ID,
-            body={
-                "valueInputOption": "USER_ENTERED",
-                "data": [
-                    {
-                        "range": f"Form_Responses!{letra_coluna}{int(linha)}",
-                        "values": [[str(valor).strip().upper()]],
-                    }
-                    for linha, valor in linhas_valores
-                ],
-            },
-        ).execute()
+        dados = []
+
+        for linha, valor in linhas_valores:
+            linha_int = int(linha)
+            valor_final = (
+                "SIM"
+                if str(valor).strip().upper() == "SIM"
+                else "NÃO"
+            )
+
+            dados.append({
+                "range": (
+                    f"'{nome_aba}'!"
+                    f"{letra_coluna}{linha_int}"
+                ),
+                "values": [[valor_final]],
+            })
+
+        (
+            service.spreadsheets()
+            .values()
+            .batchUpdate(
+                spreadsheetId=SPREADSHEET_ID,
+                body={
+                    "valueInputOption": "USER_ENTERED",
+                    "data": dados,
+                },
+            )
+            .execute()
+        )
 
         return True, None
 
