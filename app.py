@@ -3884,37 +3884,63 @@ elif menu == "📋 Painel de Orçamentos":
                     )
 
             # ------------------------------------------------------------------
-            # FILTROS DE PESQUISA
+            # FILTROS DE PESQUISA — SOMENTE FUNILARIA E PINTURA
             # ------------------------------------------------------------------
 
-            (
-                col_pesquisa1,
-                col_pesquisa2,
-                col_pesquisa3
-            ) = st.columns(
-                [1, 1, 1]
+            area_atuacao_logada = (
+                str(
+                    st.session_state.get(
+                        "area_atuacao",
+                        "Padrão"
+                    )
+                    or "Padrão"
+                )
+                .strip()
+                .casefold()
             )
 
-            with col_pesquisa1:
+            eh_funilaria_pintura = (
+                area_atuacao_logada
+                == "funilaria e pintura"
+            )
 
-                filtro_cliente = st.text_input(
-                    "Cliente",
-                    placeholder="Digite o nome do cliente",
-                ).strip()
+            filtro_cliente = ""
+            filtro_placa = ""
+            filtro_telefone = ""
 
-            with col_pesquisa2:
+            if eh_funilaria_pintura:
 
-                filtro_placa = st.text_input(
-                    "Nº Placa",
-                    placeholder="Ex: ABC1D23",
-                ).strip()
+                (
+                    col_pesquisa1,
+                    col_pesquisa2,
+                    col_pesquisa3
+                ) = st.columns(
+                    [1, 1, 1]
+                )
 
-            with col_pesquisa3:
+                with col_pesquisa1:
 
-                filtro_telefone = st.text_input(
-                    "Telefone",
-                    placeholder="Digite o telefone",
-                ).strip()
+                    filtro_cliente = st.text_input(
+                        "Cliente",
+                        placeholder="Digite o nome do cliente",
+                        key="filtro_painel_cliente_funilaria",
+                    ).strip()
+
+                with col_pesquisa2:
+
+                    filtro_placa = st.text_input(
+                        "Nº Placa",
+                        placeholder="Ex: ABC1D23",
+                        key="filtro_painel_placa_funilaria",
+                    ).strip()
+
+                with col_pesquisa3:
+
+                    filtro_telefone = st.text_input(
+                        "Telefone",
+                        placeholder="Digite o telefone",
+                        key="filtro_painel_telefone_funilaria",
+                    ).strip()
 
             agora = (
                 pd.Timestamp.now()
@@ -4085,59 +4111,24 @@ elif menu == "📋 Painel de Orçamentos":
                 )
 
             # ------------------------------------------------------------------
-            # PESQUISA POR CLIENTE, PLACA E TELEFONE
+            # PESQUISA POR CLIENTE, PLACA E TELEFONE — FUNILARIA E PINTURA
             # ------------------------------------------------------------------
 
-            if filtro_cliente:
+            if eh_funilaria_pintura:
 
-                df_filtrado = (
-                    df_filtrado[
-                        df_filtrado[
-                            col_nome
-                        ]
-                        .fillna("")
-                        .astype(str)
-                        .str.strip()
-                        .str.lower()
-                        .str.contains(
-                            filtro_cliente.lower(),
-                            na=False,
-                            regex=False,
-                        )
-                    ]
-                    .copy()
-                )
-
-            if filtro_placa:
-
-                if col_placa:
-
-                    placa_busca = re.sub(
-                        r"[^A-Za-z0-9]",
-                        "",
-                        filtro_placa
-                    ).upper()
-
-                    placa_coluna = (
-                        df_filtrado[
-                            col_placa
-                        ]
-                        .fillna("")
-                        .astype(str)
-                        .map(
-                            lambda valor: re.sub(
-                                r"[^A-Za-z0-9]",
-                                "",
-                                valor
-                            ).upper()
-                        )
-                    )
+                if filtro_cliente:
 
                     df_filtrado = (
                         df_filtrado[
-                            placa_coluna
+                            df_filtrado[
+                                col_nome
+                            ]
+                            .fillna("")
+                            .astype(str)
+                            .str.strip()
+                            .str.lower()
                             .str.contains(
-                                placa_busca,
+                                filtro_cliente.lower(),
                                 na=False,
                                 regex=False,
                             )
@@ -4145,47 +4136,84 @@ elif menu == "📋 Painel de Orçamentos":
                         .copy()
                     )
 
-                else:
+                if filtro_placa:
+
+                    if col_placa:
+
+                        placa_busca = re.sub(
+                            r"[^A-Za-z0-9]",
+                            "",
+                            filtro_placa
+                        ).upper()
+
+                        placa_coluna = (
+                            df_filtrado[
+                                col_placa
+                            ]
+                            .fillna("")
+                            .astype(str)
+                            .map(
+                                lambda valor: re.sub(
+                                    r"[^A-Za-z0-9]",
+                                    "",
+                                    valor
+                                ).upper()
+                            )
+                        )
+
+                        df_filtrado = (
+                            df_filtrado[
+                                placa_coluna
+                                .str.contains(
+                                    placa_busca,
+                                    na=False,
+                                    regex=False,
+                                )
+                            ]
+                            .copy()
+                        )
+
+                    else:
+
+                        df_filtrado = (
+                            df_filtrado.iloc[0:0]
+                            .copy()
+                        )
+
+                if filtro_telefone:
+
+                    telefone_busca = re.sub(
+                        r"\D",
+                        "",
+                        filtro_telefone
+                    )
+
+                    telefone_coluna = (
+                        df_filtrado[
+                            col_whats
+                        ]
+                        .fillna("")
+                        .astype(str)
+                        .map(
+                            lambda valor: re.sub(
+                                r"\D",
+                                "",
+                                valor
+                            )
+                        )
+                    )
 
                     df_filtrado = (
-                        df_filtrado.iloc[0:0]
+                        df_filtrado[
+                            telefone_coluna
+                            .str.contains(
+                                telefone_busca,
+                                na=False,
+                                regex=False,
+                            )
+                        ]
                         .copy()
                     )
-
-            if filtro_telefone:
-
-                telefone_busca = re.sub(
-                    r"\D",
-                    "",
-                    filtro_telefone
-                )
-
-                telefone_coluna = (
-                    df_filtrado[
-                        col_whats
-                    ]
-                    .fillna("")
-                    .astype(str)
-                    .map(
-                        lambda valor: re.sub(
-                            r"\D",
-                            "",
-                            valor
-                        )
-                    )
-                )
-
-                df_filtrado = (
-                    df_filtrado[
-                        telefone_coluna
-                        .str.contains(
-                            telefone_busca,
-                            na=False,
-                            regex=False,
-                        )
-                    ]
-                    .copy()
-                )
 
             # ------------------------------------------------------------------
             # KPIs
