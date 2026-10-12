@@ -2,6 +2,8 @@ import base64
 import io
 import os
 import re
+import time
+from urllib.parse import quote
 
 import pandas as pd
 import requests
@@ -1317,7 +1319,8 @@ def checar_whatsapp_em_tempo_real(
 # =================================================================================
 
 def criar_instancia_evolution(
-    instance_name
+    instance_name,
+    phone_number=None
 ):
     """
     Cria automaticamente uma instância na Evolution API.
@@ -1358,6 +1361,11 @@ def criar_instancia_evolution(
             "qrcode": True,
             "integration": "WHATSAPP-BAILEYS",
         }
+
+        # Para o fluxo por código, informar o telefone durante a criação ajuda
+        # a Evolution/Baileys a solicitar um pairing code vinculado ao número.
+        if phone_number:
+            payload["number"] = str(phone_number)
 
         response = requests.post(
             url,
@@ -1556,6 +1564,158 @@ def obter_qr_code_evolution(
             ),
         }
 
+
+
+def normalizar_numero_pareamento(numero):
+    """Normaliza telefone para formato internacional, somente dígitos."""
+    telefone = re.sub(r"\D", "", str(numero or ""))
+
+    # Se o usuário informar apenas DDD + número brasileiro, acrescenta DDI 55.
+    if len(telefone) in {10, 11}:
+        telefone = "55" + telefone
+
+    # Aceita números internacionais com DDI, total de 12 a 15 dígitos no caso BR/global.
+    if not (12 <= len(telefone) <= 15):
+        return None
+
+    return telefone
+
+
+def extrair_codigo_pareamento(data):
+    """Extrai pairingCode em formatos diretos ou aninhados da Evolution API."""
+    if not isinstance(data, dict):
+        return None
+
+    candidatos = [data]
+    for chave in ("data", "qrcode", "qr", "instance"):
+        valor = data.get(chave)
+        if isinstance(valor, dict):
+            candidatos.append(valor)
+            qr_interno = valor.get("qrcode")
+            if isinstance(qr_interno, dict):
+                candidatos.append(qr_interno)
+
+    for candidato in candidatos:
+        codigo = candidato.get("pairingCode") or candidato.get("pairing_code")
+        if isinstance(codigo, str) and codigo.strip():
+            return codigo.strip()
+
+    return None
+
+
+def solicitar_codigo_pareamento_evolution(instance_name, numero):
+    """Solicita código de pareamento para a instância determinada pelo login."""
+    if not instance_name:
+        return {"ok": False, "mensagem": "Nenhuma instância foi associada ao usuário/empresa logado."}
+
+    if not evolution_configurada():
+        return {"ok": False, "mensagem": "A configuração da Evolution API não foi encontrada nos Secrets."}
+
+    telefone = normalizar_numero_pareamento(numero)
+    if not telefone:
+        return {
+            "ok": False,
+            "mensagem": "Informe o telefone com DDI e DDD. Exemplo: 5548999999999. Também aceitamos DDD + número sem o DDI 55.",
+        }
+
+    estado = obter_estado_instancia(instance_name)
+    if estado.get("state") == "open":
+        return {
+            "ok": False,
+            "ja_conectada": True,
+            "mensagem": "O WhatsApp desta instância já está conectado. Não é necessário gerar outro código.",
+        }
+
+    # Se ainda não existir, cria a instância com o número informado. A instância
+    # utilizada continua sendo sempre a resolvida pelo login; não há nome fixo.
+    if estado.get("status_code") == 404:
+        criacao = criar_instancia_evolution(instance_name, phone_number=telefone)
+        if not criacao.get("ok"):
+            return {
+                "ok": False,
+                "status_code": criacao.get("status_code"),
+                "mensagem": criacao.get("mensagem") or "Não foi possível preparar a instância para pareamento.",
+            }
+
+        codigo_criacao = extrair_codigo_pareamento(criacao.get("data", {}))
+        if codigo_criacao:
+            return {"ok": True, "codigo": codigo_criacao, "telefone": telefone, "tentativas": 1}
+    elif estado.get("status_code") is None and estado.get("exists") is None:
+        return {
+            "ok": False,
+            "mensagem": estado.get("erro") or "Não foi possível verificar o estado da instância. Tente novamente.",
+        }
+
+    # Evolution API 2.3.7 pode responder sem pairingCode na primeira chamada.
+    # Fazemos até quatro tentativas curtas, sem declarar conexão antes da confirmação.
+    url = f"{EVOLUTION_API_URL}/instance/connect/{quote(str(instance_name), safe='')}"
+    ultima_mensagem = "A Evolution API ainda não retornou um código de pareamento."
+    ultimo_status = None
+
+    for tentativa in range(1, 5):
+        try:
+            response = requests.get(
+                url,
+                headers=evolution_headers(),
+                params={"number": telefone},
+                timeout=15,
+            )
+            ultimo_status = response.status_code
+
+            try:
+                dados = response.json()
+            except Exception:
+                dados = {}
+
+            if 200 <= response.status_code < 300:
+                codigo = extrair_codigo_pareamento(dados)
+                if codigo:
+                    return {
+                        "ok": True,
+                        "codigo": codigo,
+                        "telefone": telefone,
+                        "tentativas": tentativa,
+                        "status_code": response.status_code,
+                    }
+
+                ultima_mensagem = (
+                    "A API respondeu, mas ainda não retornou o campo pairingCode."
+                )
+            else:
+                detalhe = ""
+                if isinstance(dados, dict):
+                    detalhe = str(
+                        dados.get("message")
+                        or dados.get("error")
+                        or dados.get("response")
+                        or ""
+                    )
+                ultima_mensagem = (
+                    f"A Evolution API retornou HTTP {response.status_code}. "
+                    f"{detalhe}".strip()
+                )
+
+                # Erros de validação/autorização não são corrigidos por repetir.
+                if 400 <= response.status_code < 500 and response.status_code not in {408, 429}:
+                    break
+
+        except requests.exceptions.Timeout:
+            ultima_mensagem = "A Evolution API demorou demais para responder."
+        except requests.exceptions.ConnectionError:
+            ultima_mensagem = "Não foi possível conectar ao servidor da Evolution API."
+        except Exception as erro:
+            ultima_mensagem = f"Falha ao solicitar pareamento: {erro}"
+
+        if tentativa < 4:
+            time.sleep(1.1)
+
+    return {
+        "ok": False,
+        "status_code": ultimo_status,
+        "telefone": telefone,
+        "tentativas": tentativa,
+        "mensagem": ultima_mensagem,
+    }
 
 def preparar_instancia_para_conexao(
     instance_name
@@ -5483,314 +5643,229 @@ elif menu == "📋 Painel de Orçamentos":
 
 elif menu == "📱 Conectar WhatsApp":
 
-    st.title(
-        "📱 Status da Conexão WhatsApp"
-    )
-
+    st.title("📱 Status da Conexão WhatsApp")
     st.write(
-        "Gerencie a conexão da Evolution API "
-        "para disparos automáticos de propostas."
+        "Conecte o WhatsApp da sua empresa para enviar propostas automaticamente. "
+        "Escolha o método mais conveniente para o dispositivo que está usando."
     )
-
     st.divider()
 
     if not INSTANCE_NAME_LOGADA:
-
         st.warning(
-            "⚠️ Nenhuma instância de WhatsApp "
-            "foi configurada para este usuário "
-            "nem para a empresa."
+            "⚠️ Nenhuma instância de WhatsApp foi configurada para este usuário nem para a empresa."
         )
-
         st.info(
-            "Preencha Evolution_Instance em "
-            "Usuarios para um WhatsApp individual "
-            "ou em Empresas para o WhatsApp "
-            "compartilhado."
+            "Preencha Evolution_Instance em Usuarios para um WhatsApp individual "
+            "ou em Empresas para um WhatsApp compartilhado."
         )
 
     elif not evolution_configurada():
-
         st.error(
-            "A configuração da Evolution API "
-            "não foi encontrada nos Secrets "
-            "do Streamlit."
+            "A configuração da Evolution API não foi encontrada nos Secrets do Streamlit."
         )
-
-        st.info(
-            "Verifique se existe a seção "
-            "[evolution] com api_url e api_key."
-        )
+        st.info("Verifique se existe a seção [evolution] com api_url e api_key.")
 
     else:
+        # A instância é resolvida dinamicamente pelo login do usuário atual.
+        # Não codificar EMP003/EMP004 ou restringir a tela por Area_Atuacao.
+        st.caption(f"Instância desta sessão: **{INSTANCE_NAME_LOGADA}**")
 
-        st.caption(
-            "Instância utilizada nesta sessão: "
-            f"**{INSTANCE_NAME_LOGADA}**"
+        metodo_conexao = st.radio(
+            "Como deseja conectar?",
+            options=[
+                "Código de pareamento (neste celular)",
+                "QR Code (outro dispositivo)",
+            ],
+            horizontal=False,
+            key="metodo_conexao_whatsapp_global",
         )
 
         st.markdown("")
 
-        col_btn, col_status = (
-            st.columns([1, 2])
-        )
-
-        with col_btn:
-
-            verificar = st.button(
-                "🔄 Verificar Status / Gerar QR Code"
+        if metodo_conexao == "Código de pareamento (neste celular)":
+            st.subheader("📱 Conectar sem escanear QR Code")
+            st.write(
+                "Informe o número do WhatsApp que será vinculado. "
+                "O sistema usa automaticamente a instância associada ao seu login."
             )
 
-        # ================================================================
-        # PREPARAÇÃO AUTOMÁTICA
-        # ================================================================
-
-        with st.spinner(
-            "Verificando WhatsApp..."
-        ):
-
-            preparo = (
-                preparar_instancia_para_conexao(
-                    INSTANCE_NAME_LOGADA
+            with st.form("form_codigo_pareamento_whatsapp", clear_on_submit=False):
+                telefone_pareamento = st.text_input(
+                    "Número do WhatsApp",
+                    placeholder="Ex.: 5548999999999",
+                    help="Informe DDI + DDD + número. Para números brasileiros, pode informar apenas DDD + número; o DDI 55 será acrescentado.",
+                    key="telefone_pareamento_whatsapp",
                 )
-            )
+                gerar_codigo = st.form_submit_button(
+                    "🔐 Gerar código de pareamento",
+                    type="primary",
+                    use_container_width=True,
+                )
 
-        if not preparo["ok"]:
+            chave_codigo = f"codigo_pareamento_{re.sub(r'[^A-Za-z0-9_]', '_', INSTANCE_NAME_LOGADA)}"
+            chave_telefone = f"telefone_pareamento_{re.sub(r'[^A-Za-z0-9_]', '_', INSTANCE_NAME_LOGADA)}"
+            chave_mensagem = f"mensagem_pareamento_{re.sub(r'[^A-Za-z0-9_]', '_', INSTANCE_NAME_LOGADA)}"
 
-            st.error(
-                "Não foi possível preparar "
-                "a instância do WhatsApp."
-            )
+            if gerar_codigo:
+                # Limpa eventual código anterior antes de solicitar um novo.
+                st.session_state.pop(chave_codigo, None)
+                st.session_state.pop(chave_telefone, None)
+                st.session_state.pop(chave_mensagem, None)
 
-            if preparo.get(
-                "mensagem"
-            ):
+                with st.spinner("Solicitando código à Evolution API..."):
+                    resultado_pareamento = solicitar_codigo_pareamento_evolution(
+                        INSTANCE_NAME_LOGADA,
+                        telefone_pareamento,
+                    )
 
+                if resultado_pareamento.get("ok"):
+                    st.session_state[chave_codigo] = resultado_pareamento["codigo"]
+                    st.session_state[chave_telefone] = resultado_pareamento.get("telefone", "")
+                    st.session_state[chave_mensagem] = None
+                else:
+                    st.session_state[chave_mensagem] = resultado_pareamento.get(
+                        "mensagem", "Não foi possível gerar o código."
+                    )
+                    if resultado_pareamento.get("ja_conectada"):
+                        st.info(resultado_pareamento["mensagem"])
+                    else:
+                        st.error(resultado_pareamento["mensagem"])
+
+            codigo_atual = st.session_state.get(chave_codigo)
+            telefone_atual = st.session_state.get(chave_telefone, "")
+
+            if codigo_atual:
+                st.success("Código gerado. Digite-o imediatamente no WhatsApp do número informado.")
+                st.code(codigo_atual, language=None)
+                st.caption(f"Número solicitado: +{telefone_atual}")
+
+                st.markdown("**No celular, siga estes passos:**")
+                st.markdown(
+                    "1. Abra o WhatsApp do número informado.\n"
+                    "2. Entre em **Aparelhos conectados**.\n"
+                    "3. Toque em **Conectar um aparelho**.\n"
+                    "4. Escolha **Conectar com número de telefone**.\n"
+                    "5. Digite o código mostrado acima."
+                )
+
+                if st.button(
+                    "🔄 Já digitei o código — verificar conexão",
+                    use_container_width=True,
+                    key="verificar_pareamento_whatsapp",
+                ):
+                    with st.spinner("Verificando estado da conexão..."):
+                        estado_pareamento = obter_estado_instancia(INSTANCE_NAME_LOGADA)
+
+                    if estado_pareamento.get("state") == "open":
+                        st.session_state.pop(chave_codigo, None)
+                        st.success("✅ WhatsApp conectado e operacional!")
+                        st.info("A conexão está pronta para enviar propostas automaticamente.")
+                    else:
+                        st.warning(
+                            "A conexão ainda não foi confirmada. Aguarde alguns segundos e tente verificar novamente."
+                        )
+                        if estado_pareamento.get("erro"):
+                            st.caption(estado_pareamento["erro"])
+
+                st.caption(
+                    "Se o WhatsApp rejeitar um código mesmo recém-gerado, selecione QR Code como alternativa. "
+                    "A Evolution API 2.3.7 tem relatos desse comportamento; gerar o código não garante que o WhatsApp o aceitará."
+                )
+
+            elif st.session_state.get(chave_mensagem):
                 st.info(
-                    preparo[
-                        "mensagem"
-                    ]
+                    "Se o código não puder ser gerado ou for rejeitado pelo WhatsApp, "
+                    "selecione **QR Code (outro dispositivo)** para continuar."
                 )
+
+            st.info(
+                "Dica: o método por código evita usar a câmera de outro aparelho. "
+                "A instância usada é sempre a vinculada ao seu login, independentemente da área de atuação."
+            )
 
         else:
-
-            if preparo.get(
-                "criada_agora"
-            ):
-
-                st.success(
-                    "✅ Instância criada "
-                    "automaticamente na "
-                    "Evolution API."
-                )
-
-            # ============================================================
-            # QR RETORNADO PELA CRIAÇÃO
-            # ============================================================
-
-            base64_qr = None
-            pairing_code = None
-            code = None
-
-            criacao = (
-                preparo.get(
-                    "criacao"
-                )
+            st.subheader("🔳 Conectar por QR Code")
+            st.write(
+                "Use esta opção quando tiver outro celular ou dispositivo disponível "
+                "para escanear o QR Code. O fluxo tradicional permanece disponível."
             )
 
-            if criacao:
-
-                (
-                    base64_qr,
-                    pairing_code,
-                    code
-                ) = (
-                    extrair_qr_da_resposta(
-                        criacao.get(
-                            "data",
-                            {}
-                        )
-                    )
-                )
-
-            # ============================================================
-            # CONSULTA ESTADO
-            # ============================================================
-
-            estado = obter_estado_instancia(
-                INSTANCE_NAME_LOGADA
+            verificar = st.button(
+                "🔄 Verificar status / gerar QR Code",
+                use_container_width=True,
+                key="verificar_status_qr_whatsapp",
             )
 
-            # ============================================================
-            # CONECTADO
-            # ============================================================
+            with st.spinner("Verificando WhatsApp..."):
+                preparo = preparar_instancia_para_conexao(INSTANCE_NAME_LOGADA)
 
-            if (
-                estado["state"]
-                == "open"
-            ):
-
-                st.success(
-                    "🟢 **WhatsApp Conectado "
-                    "e Operacional!**"
-                )
-
-                st.info(
-                    "Sua instância está pronta "
-                    "para enviar as propostas "
-                    "automaticamente aos clientes."
-                )
+            if not preparo["ok"]:
+                st.error("Não foi possível preparar a instância do WhatsApp.")
+                if preparo.get("mensagem"):
+                    st.info(preparo["mensagem"])
 
             else:
+                if preparo.get("criada_agora"):
+                    st.success("✅ Instância criada automaticamente na Evolution API.")
 
-                # ========================================================
-                # SOLICITA QR
-                # ========================================================
+                base64_qr = None
+                pairing_code = None
+                code = None
+                criacao = preparo.get("criacao")
 
-                if not base64_qr:
-
-                    with st.spinner(
-                        "Preparando QR Code..."
-                    ):
-
-                        qr_resultado = (
-                            obter_qr_code_evolution(
-                                INSTANCE_NAME_LOGADA
-                            )
-                        )
-
-                    if qr_resultado[
-                        "ok"
-                    ]:
-
-                        base64_qr = (
-                            qr_resultado[
-                                "base64"
-                            ]
-                        )
-
-                        pairing_code = (
-                            qr_resultado[
-                                "pairing_code"
-                            ]
-                        )
-
-                        code = (
-                            qr_resultado[
-                                "code"
-                            ]
-                        )
-
-                # ========================================================
-                # MOSTRA QR
-                # ========================================================
-
-                if base64_qr:
-
-                    st.warning(
-                        "🟡 **WhatsApp aguardando "
-                        "pareamento**"
+                if criacao:
+                    base64_qr, pairing_code, code = extrair_qr_da_resposta(
+                        criacao.get("data", {})
                     )
 
-                    st.write(
-                        "Abra o WhatsApp no celular "
-                        "que será conectado, entre em "
-                        "**Aparelhos Conectados** e "
-                        "escaneie o QR Code abaixo."
-                    )
+                estado = obter_estado_instancia(INSTANCE_NAME_LOGADA)
 
-                    qr_bytes = (
-                        obter_qr_bytes(
-                            base64_qr
-                        )
-                    )
-
-                    if qr_bytes:
-
-                        (
-                            col_qr1,
-                            col_qr2,
-                            col_qr3
-                        ) = st.columns(
-                            [1, 1, 1]
-                        )
-
-                        with col_qr2:
-
-                            st.image(
-                                qr_bytes,
-                                width=300
-                            )
-
-                    else:
-
-                        st.error(
-                            "A Evolution API "
-                            "retornou um QR Code, "
-                            "mas não foi possível "
-                            "decodificar a imagem."
-                        )
-
-                    if pairing_code:
-
-                        st.caption(
-                            "Código de pareamento: "
-                            f"**{pairing_code}**"
-                        )
+                if estado.get("state") == "open":
+                    st.success("🟢 **WhatsApp conectado e operacional!**")
+                    st.info("Sua instância está pronta para enviar propostas automaticamente.")
 
                 else:
+                    if not base64_qr:
+                        with st.spinner("Preparando QR Code..."):
+                            qr_resultado = obter_qr_code_evolution(INSTANCE_NAME_LOGADA)
 
-                    st.warning(
-                        "A instância existe, "
-                        "mas a Evolution API "
-                        "ainda não retornou "
-                        "um QR Code."
-                    )
+                        if qr_resultado.get("ok"):
+                            base64_qr = qr_resultado.get("base64")
+                            pairing_code = qr_resultado.get("pairing_code")
+                            code = qr_resultado.get("code")
 
-                    if code:
-
-                        st.caption(
-                            f"Código retornado pela "
-                            f"Evolution API: **{code}**"
+                    if base64_qr:
+                        st.warning("🟡 **WhatsApp aguardando pareamento**")
+                        st.write(
+                            "Abra o WhatsApp no celular que será conectado, entre em "
+                            "**Aparelhos conectados** e escaneie o QR Code abaixo."
                         )
 
-                    st.info(
-                        "Clique novamente em "
-                        "**Verificar Status / "
-                        "Gerar QR Code**."
-                    )
-
-                    if (
-                        "qr_resultado"
-                        in locals()
-                        and
-                        not qr_resultado.get(
-                            "ok",
-                            False
-                        )
-                    ):
-
-                        status_qr = (
-                            qr_resultado.get(
-                                "status_code"
-                            )
-                        )
-
-                        if status_qr:
-
-                            st.caption(
-                                "Status da API ao "
-                                "solicitar QR: "
-                                f"{status_qr}"
+                        qr_bytes = obter_qr_bytes(base64_qr)
+                        if qr_bytes:
+                            col_qr1, col_qr2, col_qr3 = st.columns([1, 1, 1])
+                            with col_qr2:
+                                st.image(qr_bytes, width=300)
+                        else:
+                            st.error(
+                                "A Evolution API retornou um QR Code, mas não foi possível decodificar a imagem."
                             )
 
-            if (
-                verificar
-                and
-                preparo["ok"]
-            ):
+                        if pairing_code:
+                            st.caption(f"Código de pareamento também retornado pela API: **{pairing_code}**")
 
-                st.toast(
-                    "Status atualizado.",
-                    icon="✅"
-                )
+                    else:
+                        st.warning(
+                            "A instância existe, mas a Evolution API ainda não retornou um QR Code."
+                        )
+                        if code:
+                            st.caption(f"Código retornado pela Evolution API: **{code}**")
+                        st.info("Clique novamente em **Verificar status / gerar QR Code**.")
+                        if "qr_resultado" in locals() and not qr_resultado.get("ok", False):
+                            status_qr = qr_resultado.get("status_code")
+                            if status_qr:
+                                st.caption(f"Status da API ao solicitar QR: {status_qr}")
+
+                if verificar and preparo["ok"]:
+                    st.toast("Status atualizado.", icon="✅")
+
