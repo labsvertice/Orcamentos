@@ -3122,16 +3122,41 @@ if menu == "➕ Novo Orçamento":
         # IDs estáveis evitam que os valores dos campos mudem de linha ao excluir um item.
         chave_ids_itens = "funilaria_ids_itens_orcamento"
         chave_proximo_id = "funilaria_proximo_id_item_orcamento"
-        if chave_ids_itens not in st.session_state:
-            qtd_anterior = int(st.session_state.get("funilaria_qtd_itens_orcamento", 1))
-            st.session_state[chave_ids_itens] = list(range(max(1, qtd_anterior)))
-            st.session_state[chave_proximo_id] = max(1, qtd_anterior)
+        # Migra estados da versão anterior (que podia abrir com cinco linhas)
+        # e inicia o formulário com apenas um item. O marcador evita reiniciar
+        # os itens a cada rerun normal do Streamlit.
+        chave_versao_itens = "funilaria_itens_dinamicos_versao_2"
+        if not st.session_state.get(chave_versao_itens):
+            ids_antigos = st.session_state.get(chave_ids_itens, [])
+            for id_antigo in ids_antigos:
+                st.session_state.pop(f"funilaria_servico_{id_antigo}", None)
+                st.session_state.pop(f"funilaria_valor_{id_antigo}", None)
+                st.session_state.pop(f"funilaria_excluir_item_{id_antigo}", None)
+            st.session_state[chave_ids_itens] = [0]
+            st.session_state[chave_proximo_id] = 1
+            st.session_state[chave_versao_itens] = True
+        elif chave_ids_itens not in st.session_state:
+            st.session_state[chave_ids_itens] = [0]
+            st.session_state[chave_proximo_id] = 1
         elif chave_proximo_id not in st.session_state:
             st.session_state[chave_proximo_id] = max(st.session_state[chave_ids_itens], default=-1) + 1
 
+        def _excluir_item_funilaria(item_id):
+            """Remove o item selecionado diretamente do estado da sessão."""
+            ids_atuais = st.session_state.get(chave_ids_itens, [])
+            if item_id in ids_atuais:
+                ids_atuais.remove(item_id)
+            st.session_state.pop(f"funilaria_servico_{item_id}", None)
+            st.session_state.pop(f"funilaria_valor_{item_id}", None)
+            st.session_state.pop(f"funilaria_excluir_item_{item_id}", None)
+            # O formulário deve manter sempre uma linha disponível.
+            if not ids_atuais:
+                novo_id = st.session_state.get(chave_proximo_id, 0)
+                st.session_state[chave_proximo_id] = novo_id + 1
+                ids_atuais.append(novo_id)
+
         linhas_itens_funilaria = []
         nomes_servicos_selecionados = []
-        ids_para_excluir = []
 
         for numero_item, id_item in enumerate(list(st.session_state[chave_ids_itens]), start=1):
             col_servico, col_valor_item, col_excluir = st.columns([3, 1, 0.22], vertical_alignment="bottom")
@@ -3155,7 +3180,8 @@ if menu == "➕ Novo Orçamento":
                     "✕",
                     key=f"funilaria_excluir_item_{id_item}",
                     help=f"Excluir o item {numero_item}",
-                    on_click=lambda item_id=id_item: ids_para_excluir.append(item_id),
+                    on_click=_excluir_item_funilaria,
+                    args=(id_item,),
                 )
 
             valor_item_limpo = str(valor_item or "").strip()
@@ -3178,21 +3204,6 @@ if menu == "➕ Novo Orçamento":
                         f"Informe um valor válido para o item {numero_item} "
                         f"(ex.: 1500,00)."
                     )
-
-        # Executa exclusões após percorrer os widgets, para não alterar o layout durante a iteração.
-        if ids_para_excluir:
-            ids_atuais = st.session_state[chave_ids_itens]
-            for id_excluir in ids_para_excluir:
-                if id_excluir in ids_atuais:
-                    ids_atuais.remove(id_excluir)
-                st.session_state.pop(f"funilaria_servico_{id_excluir}", None)
-                st.session_state.pop(f"funilaria_valor_{id_excluir}", None)
-                st.session_state.pop(f"funilaria_excluir_item_{id_excluir}", None)
-            if not ids_atuais:
-                novo_id = st.session_state[chave_proximo_id]
-                st.session_state[chave_proximo_id] = novo_id + 1
-                ids_atuais.append(novo_id)
-            st.rerun()
 
         if st.button(
             "+ Incluir novo item",
