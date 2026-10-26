@@ -3119,28 +3119,43 @@ if menu == "➕ Novo Orçamento":
             "Outros",
         ]
 
-        chave_qtd_itens = "funilaria_qtd_itens_orcamento"
-        if chave_qtd_itens not in st.session_state:
-            st.session_state[chave_qtd_itens] = 1
+        # IDs estáveis evitam que os valores dos campos mudem de linha ao excluir um item.
+        chave_ids_itens = "funilaria_ids_itens_orcamento"
+        chave_proximo_id = "funilaria_proximo_id_item_orcamento"
+        if chave_ids_itens not in st.session_state:
+            qtd_anterior = int(st.session_state.get("funilaria_qtd_itens_orcamento", 1))
+            st.session_state[chave_ids_itens] = list(range(max(1, qtd_anterior)))
+            st.session_state[chave_proximo_id] = max(1, qtd_anterior)
+        elif chave_proximo_id not in st.session_state:
+            st.session_state[chave_proximo_id] = max(st.session_state[chave_ids_itens], default=-1) + 1
 
         linhas_itens_funilaria = []
         nomes_servicos_selecionados = []
+        ids_para_excluir = []
 
-        for indice_item in range(st.session_state[chave_qtd_itens]):
-            col_servico, col_valor_item = st.columns([3, 1])
+        for numero_item, id_item in enumerate(list(st.session_state[chave_ids_itens]), start=1):
+            col_servico, col_valor_item, col_excluir = st.columns([3, 1, 0.22], vertical_alignment="bottom")
 
             with col_servico:
                 servico_escolhido = st.selectbox(
-                    f"Item {indice_item + 1} *",
+                    f"Item {numero_item} *",
                     servicos_funilaria,
-                    key=f"funilaria_servico_{indice_item}",
+                    key=f"funilaria_servico_{id_item}",
                 )
 
             with col_valor_item:
                 valor_item = st.text_input(
                     "Valor (R$) *",
                     placeholder="Ex.: 1500,00",
-                    key=f"funilaria_valor_{indice_item}",
+                    key=f"funilaria_valor_{id_item}",
+                )
+
+            with col_excluir:
+                st.button(
+                    "✕",
+                    key=f"funilaria_excluir_item_{id_item}",
+                    help=f"Excluir o item {numero_item}",
+                    on_click=lambda item_id=id_item: ids_para_excluir.append(item_id),
                 )
 
             valor_item_limpo = str(valor_item or "").strip()
@@ -3156,26 +3171,37 @@ if menu == "➕ Novo Orçamento":
                         .replace(".", ",")
                         .replace("X", ".")
                     )
-                    linhas_itens_funilaria.append(
-                        f"{servico_escolhido} | {valor_formatado}"
-                    )
+                    linhas_itens_funilaria.append(f"{servico_escolhido} | {valor_formatado}")
                     nomes_servicos_selecionados.append(servico_escolhido)
                 except (ValueError, TypeError):
                     st.warning(
-                        f"Informe um valor válido para o item {indice_item + 1} "
+                        f"Informe um valor válido para o item {numero_item} "
                         f"(ex.: 1500,00)."
                     )
-            else:
-                # Não incluir linha sem valor no payload; a validação abaixo
-                # exige pelo menos um item completo.
-                pass
+
+        # Executa exclusões após percorrer os widgets, para não alterar o layout durante a iteração.
+        if ids_para_excluir:
+            ids_atuais = st.session_state[chave_ids_itens]
+            for id_excluir in ids_para_excluir:
+                if id_excluir in ids_atuais:
+                    ids_atuais.remove(id_excluir)
+                st.session_state.pop(f"funilaria_servico_{id_excluir}", None)
+                st.session_state.pop(f"funilaria_valor_{id_excluir}", None)
+                st.session_state.pop(f"funilaria_excluir_item_{id_excluir}", None)
+            if not ids_atuais:
+                novo_id = st.session_state[chave_proximo_id]
+                st.session_state[chave_proximo_id] = novo_id + 1
+                ids_atuais.append(novo_id)
+            st.rerun()
 
         if st.button(
             "+ Incluir novo item",
             key="funilaria_adicionar_item_orcamento",
             use_container_width=False,
         ):
-            st.session_state[chave_qtd_itens] += 1
+            novo_id = st.session_state[chave_proximo_id]
+            st.session_state[chave_proximo_id] = novo_id + 1
+            st.session_state[chave_ids_itens].append(novo_id)
             st.rerun()
 
         itens_valores = "\n".join(linhas_itens_funilaria)
