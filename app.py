@@ -3011,305 +3011,301 @@ if menu == "➕ Novo Orçamento":
 
         marcas_veiculos = carregar_marcas()
 
-    with st.form(
-        "form_orcamento",
-        clear_on_submit=True
-    ):
+
+    st.subheader(
+        "1. Dados do Cliente"
+    )
+
+    col_nome, col_whatsapp = (
+        st.columns(2)
+    )
+
+    with col_nome:
+
+        nome_cliente = st.text_input(
+            "Nome do Cliente / Contratante *"
+        )
+
+    with col_whatsapp:
+
+        whatsapp_cliente = (
+            st.text_input(
+                f"WhatsApp do Cliente "
+                f"(com DDD) * — {badge_wa}",
+                placeholder=(
+                    "Ex: 5548999999999"
+                ),
+            )
+        )
+
+    # ==============================================================
+    # FUNILARIA E PINTURA — DADOS DO VEÍCULO
+    # ==============================================================
+
+    placa_veiculo = ""
+    marca_veiculo = ""
+    modelo_veiculo = ""
+
+    if EH_FUNILARIA:
 
         st.subheader(
-            "1. Dados do Cliente"
+            "2. Dados do Veículo"
         )
 
-        col_nome, col_whatsapp = (
-            st.columns(2)
+        col_placa, col_marca, col_modelo = (
+            st.columns(3)
         )
 
-        with col_nome:
+        with col_placa:
 
-            nome_cliente = st.text_input(
-                "Nome do Cliente / Contratante *"
+            placa_veiculo = st.text_input(
+                "Nº da Placa *",
+                placeholder="Ex: ABC1D23"
             )
 
-        with col_whatsapp:
+        with col_marca:
 
-            whatsapp_cliente = (
-                st.text_input(
-                    f"WhatsApp do Cliente "
-                    f"(com DDD) * — {badge_wa}",
-                    placeholder=(
-                        "Ex: 5548999999999"
-                    ),
-                )
+            marcas_opcoes = (
+                ["Selecione a marca"]
+                + marcas_veiculos
             )
 
-        # ==============================================================
-        # FUNILARIA E PINTURA — DADOS DO VEÍCULO
-        # ==============================================================
-
-        placa_veiculo = ""
-        marca_veiculo = ""
-        modelo_veiculo = ""
-
-        if EH_FUNILARIA:
-
-            st.subheader(
-                "2. Dados do Veículo"
+            marca_veiculo = st.selectbox(
+                "Marca do Veículo *",
+                marcas_opcoes,
+                index=0,
             )
 
-            col_placa, col_marca, col_modelo = (
-                st.columns(3)
+        with col_modelo:
+
+            modelo_veiculo = st.text_input(
+                "Modelo do Veículo *",
+                placeholder="Ex: Onix Premier 1.0 Turbo"
             )
 
-            with col_placa:
+        numero_secao_detalhes = "3."
+        numero_secao_valores = "4."
 
-                placa_veiculo = st.text_input(
-                    "Nº da Placa *",
-                    placeholder="Ex: ABC1D23"
+    else:
+
+        numero_secao_detalhes = "2."
+        numero_secao_valores = "3."
+
+    if EH_FUNILARIA:
+
+        # Formulário de itens inspirado no orçamento impresso do cliente.
+        # Mantém o contrato atual com o Apps Script: resumo + itens (texto).
+        st.subheader("3. Discriminação dos Serviços e Valores")
+        st.caption(
+            "Selecione o serviço, informe o valor e use “+ Incluir novo item” "
+            "para adicionar quantos serviços forem necessários."
+        )
+
+        servicos_funilaria = [
+            "Capô",
+            "Porta Traseira",
+            "Teto",
+            "Porta Dianteira Direita",
+            "Porta Dianteira Esquerda",
+            "Porta Traseira Direita",
+            "Porta Traseira Esquerda",
+            "Paralama Dianteiro Direito",
+            "Paralama Dianteiro Esquerdo",
+            "Paralama Traseiro Esquerdo",
+            "Paralama Traseiro Direito",
+            "Caixa de Ar",
+            "Polimento",
+            "Espelhamento de Pintura",
+            "Outros",
+        ]
+
+        chave_qtd_itens = "funilaria_qtd_itens_orcamento"
+        if chave_qtd_itens not in st.session_state:
+            st.session_state[chave_qtd_itens] = 1
+
+        linhas_itens_funilaria = []
+        nomes_servicos_selecionados = []
+
+        for indice_item in range(st.session_state[chave_qtd_itens]):
+            col_servico, col_valor_item = st.columns([3, 1])
+
+            with col_servico:
+                servico_escolhido = st.selectbox(
+                    f"Item {indice_item + 1} *",
+                    servicos_funilaria,
+                    key=f"funilaria_servico_{indice_item}",
                 )
 
-            with col_marca:
-
-                marcas_opcoes = (
-                    ["Selecione a marca"]
-                    + marcas_veiculos
+            with col_valor_item:
+                valor_item = st.text_input(
+                    "Valor (R$) *",
+                    placeholder="Ex.: 1500,00",
+                    key=f"funilaria_valor_{indice_item}",
                 )
 
-                marca_veiculo = st.selectbox(
-                    "Marca do Veículo *",
-                    marcas_opcoes,
-                    index=0,
-                )
-
-            with col_modelo:
-
-                modelo_veiculo = st.text_input(
-                    "Modelo do Veículo *",
-                    placeholder="Ex: Onix Premier 1.0 Turbo"
-                )
-
-            numero_secao_detalhes = "3."
-            numero_secao_valores = "4."
-
-        else:
-
-            numero_secao_detalhes = "2."
-            numero_secao_valores = "3."
-
-        if EH_FUNILARIA:
-
-            # Formulário de itens inspirado no orçamento impresso do cliente.
-            # Mantém o contrato atual com o Apps Script: resumo + itens (texto).
-            st.subheader("3. Discriminação dos Serviços e Valores")
-            st.caption(
-                "Selecione o serviço, informe o valor e use “+ Incluir novo item” "
-                "para adicionar quantos serviços forem necessários."
-            )
-
-            servicos_funilaria = [
-                "Capô",
-                "Porta Traseira",
-                "Teto",
-                "Porta Dianteira Direita",
-                "Porta Dianteira Esquerda",
-                "Porta Traseira Direita",
-                "Porta Traseira Esquerda",
-                "Paralama Dianteiro Direito",
-                "Paralama Dianteiro Esquerdo",
-                "Paralama Traseiro Esquerdo",
-                "Paralama Traseiro Direito",
-                "Caixa de Ar",
-                "Polimento",
-                "Espelhamento de Pintura",
-                "Outros",
-            ]
-
-            chave_qtd_itens = "funilaria_qtd_itens_orcamento"
-            if chave_qtd_itens not in st.session_state:
-                st.session_state[chave_qtd_itens] = 1
-
-            linhas_itens_funilaria = []
-            nomes_servicos_selecionados = []
-
-            for indice_item in range(st.session_state[chave_qtd_itens]):
-                col_servico, col_valor_item = st.columns([3, 1])
-
-                with col_servico:
-                    servico_escolhido = st.selectbox(
-                        f"Item {indice_item + 1} *",
-                        servicos_funilaria,
-                        key=f"funilaria_servico_{indice_item}",
+            valor_item_limpo = str(valor_item or "").strip()
+            if valor_item_limpo:
+                valor_item_numerico = valor_item_limpo.replace("R$", "").replace(" ", "")
+                if "," in valor_item_numerico:
+                    valor_item_numerico = valor_item_numerico.replace(".", "").replace(",", ".")
+                try:
+                    valor_float = float(valor_item_numerico)
+                    valor_formatado = (
+                        f"R$ {valor_float:,.2f}"
+                        .replace(",", "X")
+                        .replace(".", ",")
+                        .replace("X", ".")
                     )
-
-                with col_valor_item:
-                    valor_item = st.text_input(
-                        "Valor (R$) *",
-                        placeholder="Ex.: 1500,00",
-                        key=f"funilaria_valor_{indice_item}",
+                    linhas_itens_funilaria.append(
+                        f"{servico_escolhido} | {valor_formatado}"
                     )
-
-                valor_item_limpo = str(valor_item or "").strip()
-                if valor_item_limpo:
-                    valor_item_numerico = valor_item_limpo.replace("R$", "").replace(" ", "")
-                    if "," in valor_item_numerico:
-                        valor_item_numerico = valor_item_numerico.replace(".", "").replace(",", ".")
-                    try:
-                        valor_float = float(valor_item_numerico)
-                        valor_formatado = (
-                            f"R$ {valor_float:,.2f}"
-                            .replace(",", "X")
-                            .replace(".", ",")
-                            .replace("X", ".")
-                        )
-                        linhas_itens_funilaria.append(
-                            f"{servico_escolhido} | {valor_formatado}"
-                        )
-                        nomes_servicos_selecionados.append(servico_escolhido)
-                    except (ValueError, TypeError):
-                        st.warning(
-                            f"Informe um valor válido para o item {indice_item + 1} "
-                            f"(ex.: 1500,00)."
-                        )
-                else:
-                    # Não incluir linha sem valor no payload; a validação abaixo
-                    # exige pelo menos um item completo.
-                    pass
-
-            if st.button(
-                "+ Incluir novo item",
-                key="funilaria_adicionar_item_orcamento",
-                use_container_width=False,
-            ):
-                st.session_state[chave_qtd_itens] += 1
-                st.rerun()
-
-            itens_valores = "\n".join(linhas_itens_funilaria)
-            resumo_servicos = (
-                ", ".join(nomes_servicos_selecionados)
-                if nomes_servicos_selecionados
-                else "Orçamento de funilaria e pintura"
-            )
-
-        else:
-
-            st.subheader(
-                f"{numero_secao_detalhes} Detalhes do Orçamento"
-            )
-
-            resumo_servicos = st.text_area(
-                "Resumo dos Serviços *",
-                placeholder=(
-                    "Ex: Reforma completa "
-                    "de um bar comercial..."
-                )
-            )
-
-            st.subheader(
-                f"{numero_secao_valores} Valores e Itens"
-            )
-
-            itens_valores = st.text_area(
-                "Itens, Quantidades e Valores "
-                "da Obra *",
-                placeholder=(
-                    "Ex:\n"
-                    "- Demolição de paredes | "
-                    "1 un | R$ 1.500,00\n"
-                    "- Pintura geral | "
-                    "120 m² | R$ 3.500,00"
-                )
-            )
-
-        # ==============================================================
-        # FUNILARIA E PINTURA — FOTOS DO VEÍCULO
-        # ==============================================================
-
-        fotos_capturadas = []
-        fotos_payload_preparado = []
-
-        if EH_FUNILARIA:
-
-            st.subheader(
-                "5. Fotos do Veículo"
-            )
-
-            st.caption(
-                "Opcional — adicione até 6 fotos. "
-                "No celular, o botão abre a câmera do aparelho. "
-                "No computador, selecione as imagens."
-            )
-
-            dispositivo_movel = usuario_em_dispositivo_movel()
-
-            # ==========================================================
-            # CELULAR — CÂMERA NATIVA DO NAVEGADOR / APARELHO
-            # ==========================================================
-
-            if dispositivo_movel:
-
-                if "fotos_veiculo_mobile" not in st.session_state:
-                    st.session_state[
-                        "fotos_veiculo_mobile"
-                    ] = []
-
-                fotos_mobile = carregar_fotos_mobile_component()
-
-                fotos_payload_preparado = list(
-                    fotos_mobile
-                )
-
-            # ==========================================================
-            # COMPUTADOR — SELEÇÃO DE ATÉ 6 IMAGENS
-            # ==========================================================
-
+                    nomes_servicos_selecionados.append(servico_escolhido)
+                except (ValueError, TypeError):
+                    st.warning(
+                        f"Informe um valor válido para o item {indice_item + 1} "
+                        f"(ex.: 1500,00)."
+                    )
             else:
+                # Não incluir linha sem valor no payload; a validação abaixo
+                # exige pelo menos um item completo.
+                pass
 
-                if "fotos_upload_version" not in st.session_state:
-                    st.session_state[
-                        "fotos_upload_version"
-                    ] = 0
+        if st.button(
+            "+ Incluir novo item",
+            key="funilaria_adicionar_item_orcamento",
+            use_container_width=False,
+        ):
+            st.session_state[chave_qtd_itens] += 1
+            st.rerun()
 
-                upload_key = (
-                    "fotos_veiculo_upload_"
-                    f"{st.session_state['fotos_upload_version']}"
-                )
-
-                fotos_selecionadas = st.file_uploader(
-                    "📷 Adicionar fotos",
-                    type=[
-                        "jpg",
-                        "jpeg",
-                        "png",
-                        "webp"
-                    ],
-                    accept_multiple_files=True,
-                    key=upload_key,
-                    help=(
-                        "Selecione até 6 imagens do veículo. "
-                        "Nenhuma webcam será utilizada."
-                    )
-                )
-
-                if fotos_selecionadas:
-
-                    if len(fotos_selecionadas) > 6:
-
-                        st.warning(
-                            "Você selecionou mais de 6 imagens. "
-                            "Somente as 6 primeiras serão utilizadas."
-                        )
-
-                    fotos_capturadas = list(
-                        fotos_selecionadas[:6]
-                    )
-
-                    st.caption(
-                        f"Imagens selecionadas: "
-                        f"{len(fotos_capturadas)} / 6"
-                    )
-
-        submitted = st.form_submit_button(
-            "CRIAR ORÇAMENTO"
+        itens_valores = "\n".join(linhas_itens_funilaria)
+        resumo_servicos = (
+            ", ".join(nomes_servicos_selecionados)
+            if nomes_servicos_selecionados
+            else "Orçamento de funilaria e pintura"
         )
+
+    else:
+
+        st.subheader(
+            f"{numero_secao_detalhes} Detalhes do Orçamento"
+        )
+
+        resumo_servicos = st.text_area(
+            "Resumo dos Serviços *",
+            placeholder=(
+                "Ex: Reforma completa "
+                "de um bar comercial..."
+            )
+        )
+
+        st.subheader(
+            f"{numero_secao_valores} Valores e Itens"
+        )
+
+        itens_valores = st.text_area(
+            "Itens, Quantidades e Valores "
+            "da Obra *",
+            placeholder=(
+                "Ex:\n"
+                "- Demolição de paredes | "
+                "1 un | R$ 1.500,00\n"
+                "- Pintura geral | "
+                "120 m² | R$ 3.500,00"
+            )
+        )
+
+    # ==============================================================
+    # FUNILARIA E PINTURA — FOTOS DO VEÍCULO
+    # ==============================================================
+
+    fotos_capturadas = []
+    fotos_payload_preparado = []
+
+    if EH_FUNILARIA:
+
+        st.subheader(
+            "5. Fotos do Veículo"
+        )
+
+        st.caption(
+            "Opcional — adicione até 6 fotos. "
+            "No celular, o botão abre a câmera do aparelho. "
+            "No computador, selecione as imagens."
+        )
+
+        dispositivo_movel = usuario_em_dispositivo_movel()
+
+        # ==========================================================
+        # CELULAR — CÂMERA NATIVA DO NAVEGADOR / APARELHO
+        # ==========================================================
+
+        if dispositivo_movel:
+
+            if "fotos_veiculo_mobile" not in st.session_state:
+                st.session_state[
+                    "fotos_veiculo_mobile"
+                ] = []
+
+            fotos_mobile = carregar_fotos_mobile_component()
+
+            fotos_payload_preparado = list(
+                fotos_mobile
+            )
+
+        # ==========================================================
+        # COMPUTADOR — SELEÇÃO DE ATÉ 6 IMAGENS
+        # ==========================================================
+
+        else:
+
+            if "fotos_upload_version" not in st.session_state:
+                st.session_state[
+                    "fotos_upload_version"
+                ] = 0
+
+            upload_key = (
+                "fotos_veiculo_upload_"
+                f"{st.session_state['fotos_upload_version']}"
+            )
+
+            fotos_selecionadas = st.file_uploader(
+                "📷 Adicionar fotos",
+                type=[
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp"
+                ],
+                accept_multiple_files=True,
+                key=upload_key,
+                help=(
+                    "Selecione até 6 imagens do veículo. "
+                    "Nenhuma webcam será utilizada."
+                )
+            )
+
+            if fotos_selecionadas:
+
+                if len(fotos_selecionadas) > 6:
+
+                    st.warning(
+                        "Você selecionou mais de 6 imagens. "
+                        "Somente as 6 primeiras serão utilizadas."
+                    )
+
+                fotos_capturadas = list(
+                    fotos_selecionadas[:6]
+                )
+
+                st.caption(
+                    f"Imagens selecionadas: "
+                    f"{len(fotos_capturadas)} / 6"
+                )
+
+    submitted = st.button(
+        "CRIAR ORÇAMENTO"
+    )
 
     if submitted:
 
