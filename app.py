@@ -2370,6 +2370,7 @@ def limpar_sessao():
         "evolution_instance_usuario",
         "evolution_instance_empresa",
         "evolution_instance",
+        "menu_navegacao_comercial",
 
     ]:
 
@@ -2661,6 +2662,12 @@ def tela_login():
                         "autenticado"
                     ] = True
 
+                    # Sempre abrir em Novo Orçamento após um login bem-sucedido.
+                    # A navegação poderá ser alterada normalmente durante a sessão.
+                    st.session_state[
+                        "menu_navegacao_comercial"
+                    ] = "➕ Novo Orçamento"
+
                     st.session_state[
                         "usuario_id"
                     ] = (
@@ -2946,6 +2953,7 @@ with st.sidebar:
             "📱 Conectar WhatsApp"
         ],
         index=0,
+        key="menu_navegacao_comercial",
     )
 
 
@@ -3087,33 +3095,129 @@ if menu == "➕ Novo Orçamento":
             numero_secao_detalhes = "2."
             numero_secao_valores = "3."
 
-        st.subheader(
-            f"{numero_secao_detalhes} Detalhes do Orçamento"
-        )
+        if EH_FUNILARIA:
 
-        resumo_servicos = st.text_area(
-            "Resumo dos Serviços *",
-            placeholder=(
-                "Ex: Reforma completa "
-                "de um bar comercial..."
+            # Formulário de itens inspirado no orçamento impresso do cliente.
+            # Mantém o contrato atual com o Apps Script: resumo + itens (texto).
+            st.subheader("3. Discriminação dos Serviços e Valores")
+            st.caption(
+                "Selecione o serviço, informe o valor e use “+ Incluir novo item” "
+                "para adicionar quantos serviços forem necessários."
             )
-        )
 
-        st.subheader(
-            f"{numero_secao_valores} Valores e Itens"
-        )
+            servicos_funilaria = [
+                "Capô",
+                "Porta Traseira",
+                "Teto",
+                "Porta Dianteira Direita",
+                "Porta Dianteira Esquerda",
+                "Porta Traseira Direita",
+                "Porta Traseira Esquerda",
+                "Paralama Dianteiro Direito",
+                "Paralama Dianteiro Esquerdo",
+                "Paralama Traseiro Esquerdo",
+                "Paralama Traseiro Direito",
+                "Caixa de Ar",
+                "Polimento",
+                "Espelhamento de Pintura",
+                "Outros",
+            ]
 
-        itens_valores = st.text_area(
-            "Itens, Quantidades e Valores "
-            "da Obra *",
-            placeholder=(
-                "Ex:\n"
-                "- Demolição de paredes | "
-                "1 un | R$ 1.500,00\n"
-                "- Pintura geral | "
-                "120 m² | R$ 3.500,00"
+            chave_qtd_itens = "funilaria_qtd_itens_orcamento"
+            if chave_qtd_itens not in st.session_state:
+                st.session_state[chave_qtd_itens] = 1
+
+            linhas_itens_funilaria = []
+            nomes_servicos_selecionados = []
+
+            for indice_item in range(st.session_state[chave_qtd_itens]):
+                col_servico, col_valor_item = st.columns([3, 1])
+
+                with col_servico:
+                    servico_escolhido = st.selectbox(
+                        f"Item {indice_item + 1} *",
+                        servicos_funilaria,
+                        key=f"funilaria_servico_{indice_item}",
+                    )
+
+                with col_valor_item:
+                    valor_item = st.text_input(
+                        "Valor (R$) *",
+                        placeholder="Ex.: 1500,00",
+                        key=f"funilaria_valor_{indice_item}",
+                    )
+
+                valor_item_limpo = str(valor_item or "").strip()
+                if valor_item_limpo:
+                    valor_item_numerico = valor_item_limpo.replace("R$", "").replace(" ", "")
+                    if "," in valor_item_numerico:
+                        valor_item_numerico = valor_item_numerico.replace(".", "").replace(",", ".")
+                    try:
+                        valor_float = float(valor_item_numerico)
+                        valor_formatado = (
+                            f"R$ {valor_float:,.2f}"
+                            .replace(",", "X")
+                            .replace(".", ",")
+                            .replace("X", ".")
+                        )
+                        linhas_itens_funilaria.append(
+                            f"{servico_escolhido} | {valor_formatado}"
+                        )
+                        nomes_servicos_selecionados.append(servico_escolhido)
+                    except (ValueError, TypeError):
+                        st.warning(
+                            f"Informe um valor válido para o item {indice_item + 1} "
+                            f"(ex.: 1500,00)."
+                        )
+                else:
+                    # Não incluir linha sem valor no payload; a validação abaixo
+                    # exige pelo menos um item completo.
+                    pass
+
+            if st.button(
+                "+ Incluir novo item",
+                key="funilaria_adicionar_item_orcamento",
+                use_container_width=False,
+            ):
+                st.session_state[chave_qtd_itens] += 1
+                st.rerun()
+
+            itens_valores = "\n".join(linhas_itens_funilaria)
+            resumo_servicos = (
+                ", ".join(nomes_servicos_selecionados)
+                if nomes_servicos_selecionados
+                else "Orçamento de funilaria e pintura"
             )
-        )
+
+        else:
+
+            st.subheader(
+                f"{numero_secao_detalhes} Detalhes do Orçamento"
+            )
+
+            resumo_servicos = st.text_area(
+                "Resumo dos Serviços *",
+                placeholder=(
+                    "Ex: Reforma completa "
+                    "de um bar comercial..."
+                )
+            )
+
+            st.subheader(
+                f"{numero_secao_valores} Valores e Itens"
+            )
+
+            itens_valores = st.text_area(
+                "Itens, Quantidades e Valores "
+                "da Obra *",
+                placeholder=(
+                    "Ex:\n"
+                    "- Demolição de paredes | "
+                    "1 un | R$ 1.500,00\n"
+                    "- Pintura geral | "
+                    "120 m² | R$ 3.500,00"
+                )
+            )
 
         # ==============================================================
         # FUNILARIA E PINTURA — FOTOS DO VEÍCULO
@@ -3229,12 +3333,19 @@ if menu == "➕ Novo Orçamento":
                 .strip()
             )
 
-            campos_base_ok = (
-                bool(nome_cliente)
-                and bool(whatsapp_cliente)
-                and bool(resumo_servicos)
-                and bool(itens_valores)
-            )
+            if EH_FUNILARIA:
+                campos_base_ok = (
+                    bool(nome_cliente)
+                    and bool(whatsapp_cliente)
+                    and bool(linhas_itens_funilaria)
+                )
+            else:
+                campos_base_ok = (
+                    bool(nome_cliente)
+                    and bool(whatsapp_cliente)
+                    and bool(resumo_servicos)
+                    and bool(itens_valores)
+                )
 
             campos_funilaria_ok = True
 
@@ -5868,4 +5979,3 @@ elif menu == "📱 Conectar WhatsApp":
 
                 if verificar and preparo["ok"]:
                     st.toast("Status atualizado.", icon="✅")
-
