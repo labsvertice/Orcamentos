@@ -3102,8 +3102,9 @@ if menu == "➕ Novo Orçamento":
         )
 
         servicos_funilaria = [
+            "Martelinho Geral"
             "Capô",
-            "Porta Traseira",
+            "Tampa Traseira",
             "Teto",
             "Porta Dianteira Direita",
             "Porta Dianteira Esquerda",
@@ -3111,12 +3112,13 @@ if menu == "➕ Novo Orçamento":
             "Porta Traseira Esquerda",
             "Paralama Dianteiro Direito",
             "Paralama Dianteiro Esquerdo",
-            "Paralama Traseiro Esquerdo",
-            "Paralama Traseiro Direito",
+            "Lateral Traseira Esquerda",
+            "Lateral Traseira Direita",
             "Caixa de Ar",
             "Polimento",
             "Espelhamento de Pintura",
             "Outros",
+            "Pintura",
         ]
 
         # IDs estáveis evitam que os valores dos campos mudem de linha ao excluir um item.
