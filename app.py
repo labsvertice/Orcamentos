@@ -3102,9 +3102,8 @@ if menu == "➕ Novo Orçamento":
         )
 
         servicos_funilaria = [
-            "Martelinho Geral",
             "Capô",
-            "Tampa Traseira",
+            "Porta Traseira",
             "Teto",
             "Porta Dianteira Direita",
             "Porta Dianteira Esquerda",
@@ -3112,13 +3111,12 @@ if menu == "➕ Novo Orçamento":
             "Porta Traseira Esquerda",
             "Paralama Dianteiro Direito",
             "Paralama Dianteiro Esquerdo",
-            "Lateral Traseira Esquerda",
-            "Lateral Traseira Direita",
+            "Paralama Traseiro Esquerdo",
+            "Paralama Traseiro Direito",
             "Caixa de Ar",
             "Polimento",
             "Espelhamento de Pintura",
             "Outros",
-            "Pintura",
         ]
 
         # IDs estáveis evitam que os valores dos campos mudem de linha ao excluir um item.
@@ -3253,6 +3251,19 @@ if menu == "➕ Novo Orçamento":
                 "120 m² | R$ 3.500,00"
             )
         )
+
+    # ==============================================================
+    # 4. OBSERVAÇÕES — OPCIONAL PARA TODAS AS ÁREAS
+    # ==============================================================
+
+    st.subheader("4. Observações")
+
+    observacoes = st.text_area(
+        "Observações (opcional)",
+        placeholder="Inclua informações adicionais para esta proposta...",
+        height=100,
+        key="observacoes_orcamento",
+    )
 
     # ==============================================================
     # FUNILARIA E PINTURA — FOTOS DO VEÍCULO
@@ -3527,6 +3538,11 @@ if menu == "➕ Novo Orçamento":
 
                                     "itens": (
                                         itens_valores
+                                    ),
+
+                                    # Observações opcionais da proposta.
+                                    "observacoes": (
+                                        str(observacoes or "").strip()
                                     ),
 
                                     # Campos de veículo:
