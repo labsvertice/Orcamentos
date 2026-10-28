@@ -3102,7 +3102,7 @@ if menu == "➕ Novo Orçamento":
         )
 
         servicos_funilaria = [
-            "Martelinho Geral"
+            "Martelinho Geral",
             "Capô",
             "Tampa Traseira",
             "Teto",
