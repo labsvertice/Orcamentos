@@ -768,9 +768,20 @@ try:
                 const LIMITE_BYTES = 450 * 1024;
                 const MAX_LADO = 1600;
 
-                let fotos = Array.isArray(data?.photos)
-                    ? [...data.photos]
-                    : [];
+                let fotos = Array.isArray(parentElement.__piFotos)
+                    ? parentElement.__piFotos
+                    : (
+                        Array.isArray(data?.photos)
+                            ? [...data.photos]
+                            : []
+                    );
+                
+                parentElement.__piFotos = fotos;
+
+                function salvarFotos() {
+                    parentElement.__piFotos = fotos;
+                    setStateValue('photos', [...fotos]);
+                }
 
                 function atualizarInterface() {
                     count.textContent = `Fotos adicionadas: ${fotos.length} / ${MAX_FOTOS}`;
@@ -801,7 +812,7 @@ try:
                                 nome: `foto_${String(i + 1).padStart(2, '0')}.jpg`
                             }));
 
-                            setStateValue('photos', fotos);
+                            salvarFotos();
                             atualizarInterface();
                         };
 
@@ -905,7 +916,7 @@ try:
                         const novaFoto = await comprimirImagem(arquivo);
                         fotos.push(novaFoto);
 
-                        setStateValue('photos', fotos);
+                        salvarFotos();
                         atualizarInterface();
                     } catch (error) {
                         count.textContent = 'Não foi possível adicionar a foto. Tente novamente.';
