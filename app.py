@@ -769,17 +769,17 @@ try:
                 const MAX_LADO = 1600;
 
                 let fotos = Array.isArray(parentElement.__piFotos)
-                    ? parentElement.__piFotos
+                    ? [...parentElement.__piFotos]
                     : (
                         Array.isArray(data?.photos)
                             ? [...data.photos]
                             : []
                     );
                 
-                parentElement.__piFotos = fotos;
-
+                parentElement.__piFotos = [...fotos];
+                
                 function salvarFotos() {
-                    parentElement.__piFotos = fotos;
+                    parentElement.__piFotos = [...fotos];
                     setStateValue('photos', [...fotos]);
                 }
 
@@ -2381,7 +2381,7 @@ def limpar_sessao():
         "area_atuacao",
         "fotos_veiculo_mobile",
         "fotos_upload_version",
-
+        "proposta_id_em_edicao",
         "evolution_instance_usuario",
         "evolution_instance_empresa",
         "evolution_instance",
@@ -3542,7 +3542,11 @@ if menu == "➕ Novo Orçamento":
                                                 )
                                 # Identificador exclusivo desta solicitação.
                                 # Nunca reutilizar entre orçamentos.
-                                proposta_id = str(uuid.uuid4())
+                                if not st.session_state.get("proposta_id_em_edicao"):
+                                    st.session_state["proposta_id_em_edicao"] = str(uuid.uuid4())
+                                
+                                proposta_id = st.session_state["proposta_id_em_edicao"]
+                                
                                 payload = {
 
                                     "proposta_id": proposta_id,
@@ -3667,6 +3671,7 @@ if menu == "➕ Novo Orçamento":
                                         "registrado com sucesso!"
                                     )
 
+                                    st.session_state.pop("proposta_id_em_edicao", None)
                                     # Limpa as fotos somente após sucesso,
                                     # preservando-as em caso de falha para permitir nova tentativa.
                                     st.session_state[
