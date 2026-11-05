@@ -3281,7 +3281,7 @@ if menu == "➕ Novo Orçamento":
     if EH_FUNILARIA:
 
         if "fotos_upload_version" not in st.session_state:
-        st.session_state["fotos_upload_version"] = 0
+            st.session_state["fotos_upload_version"] = 0
         st.subheader(
             "5. Fotos do Veículo"
         )
@@ -3534,9 +3534,7 @@ if menu == "➕ Novo Orçamento":
                                 proposta_id = str(uuid.uuid4())
                                 payload = {
 
-                                    "proposta_id": (
-                                        proposta_id,
-                                    ),    
+                                    "proposta_id": proposta_id,
 
                                     "nome": (
                                         nome_cliente
