@@ -3,6 +3,7 @@ import io
 import os
 import re
 import time
+import uuid
 from urllib.parse import quote
 
 import pandas as pd
@@ -943,7 +944,10 @@ def carregar_fotos_mobile_component():
         data={"photos": fotos_atuais},
         default={"photos": fotos_atuais},
         on_photos_change=lambda: None,
-        key="camera_nativa_mobile",
+        key=(
+                "camera_nativa_mobile_"
+                f"{st.session_state.get('fotos_upload_version', 0)}"
+            ),
         width="stretch",
         height=520,
     )
@@ -3276,6 +3280,8 @@ if menu == "➕ Novo Orçamento":
 
     if EH_FUNILARIA:
 
+        if "fotos_upload_version" not in st.session_state:
+        st.session_state["fotos_upload_version"] = 0
         st.subheader(
             "5. Fotos do Veículo"
         )
@@ -3523,8 +3529,14 @@ if menu == "➕ Novo Orçamento":
                                                         indice
                                                     )
                                                 )
-
+                                # Identificador exclusivo desta solicitação.
+                                # Nunca reutilizar entre orçamentos.
+                                proposta_id = str(uuid.uuid4())
                                 payload = {
+
+                                    "proposta_id": (
+                                        proposta_id,
+                                    ),    
 
                                     "nome": (
                                         nome_cliente
